@@ -6,7 +6,7 @@
 
 #### CODE STRUCTURE
 
-![CODE STRUCTURE-](asset/code-structure-v2.drawio.png)
+![CODE STRUCTURE-](asset/code-structure.drawio.png)
 
 - Domain-Driven Design (DDD) + Clean Architecture
   - ใช้ DDD เพื่อแยก Business Domain ของ e-commerce เช่น Order, Product, Inventory, Payment, Campaign และ Fulfillment ออกเป็น Bounded Context
@@ -51,6 +51,8 @@
     - flow ตัวอย่าง: Order → Inventory → Payment → Shipping
 
 #### PROTOCOL
+
+![CODE STRUCTURE-](asset/protocol.drawio.png)
 
 - gRPC (Service-to-Service)
   - ใช้สำหรับ synchronous communication ระหว่าง microservices
