@@ -369,7 +369,7 @@
 
 ## CLOUD ARCHITECTURE
 
-![CLOUD ARCHITECTURE](asset/cloud-architecture.drawio.png)
+![CLOUD ARCHITECTURE](asset/cloud-architecture-v2.drawio.png)
 
 ### Cloud Provider
 
