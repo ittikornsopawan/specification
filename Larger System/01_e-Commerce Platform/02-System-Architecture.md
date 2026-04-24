@@ -1,4 +1,11 @@
-# TECHNICAL DESIGN
+---
+type: System Architecture
+status: proposed
+updated: 2026-04-24
+date: 2026-04-24
+---
+
+# TECHNICAL DESIGN: e-Commerce Platform
 
 ## ARCHITECTURE SNAPSHOT
 
@@ -173,8 +180,6 @@
   - Order Service
   - Subscription Service
 
----
-
 #### Core e-Commerce
 
 **Product Service**:
@@ -214,8 +219,6 @@
   - Shipping Service
   - Campaign & Promotion Service
   - Notification Service
-
----
 
 #### Payment & Financial
 
@@ -272,8 +275,6 @@
   - Reconciliation Service
   - Order Service
 
----
-
 #### Fulfillment
 
 **Shipping Service**:
@@ -286,8 +287,6 @@
 - Integration:
   - Order Service
   - Inventory Service
-
----
 
 #### Growth / Marketing
 
@@ -304,8 +303,6 @@
   - Order Service
   - Tenant Service
 
----
-
 #### Communication
 
 **Notification Service**:
@@ -316,11 +313,7 @@
   - Redis
   - PostgreSQL
 - Integration:
-  - User Service
-  - Order Service
-  - Payment Service
-
----
+  - `N/A`
 
 ### BACKEND FOR FRONTEND (BFF)
 
@@ -341,8 +334,6 @@
 #### Web Application
 
 - Next.js
-
----
 
 ### OPERATIONAL INFRASTRUCTURE
 
@@ -371,18 +362,11 @@
 
 ![CLOUD ARCHITECTURE](asset/cloud-architecture-v2.drawio.png)
 
-### Cloud Provider
-
-- AWS (Amazon Web Services)
-
----
-
 ### Network Architecture
 
 - VPC (Virtual Private Cloud)
   - แยก environment: dev / staging / production
   - ใช้ Multi-AZ เพื่อ high availability
-
 - Subnets:
   - Public Subnet:
     - Load Balancer (ALB)
@@ -391,12 +375,9 @@
     - Kubernetes Nodes (EKS)
     - Internal Services
     - Databases
-
 - Security:
   - Security Groups และ NACLs ควบคุม traffic
   - Private communication ระหว่าง services ผ่าน internal network
-
----
 
 ### Compute Layer
 
@@ -404,31 +385,23 @@
   - ใช้ deploy microservices ทั้งหมด
   - รองรับ auto-scaling (HPA / Cluster Autoscaler)
   - แยก namespace ตาม domain หรือ environment
-
 - Container Runtime:
   - Docker
-
----
 
 ### API & Traffic Management
 
 - AWS Application Load Balancer (ALB)
   - รับ traffic จาก client (Web / Mobile)
   - Forward ไปยัง API Gateway
-
 - Kong API Gateway
   - Routing ไปยัง BFF
   - Handle authentication (JWT), rate limiting, request validation
-
 - BFF (GraphQL)
   - Deploy บน EKS
   - Aggregate data จาก microservices
-
 - Istio Service Mesh
   - Service-to-service communication (mTLS)
   - Traffic control, retry, circuit breaking
-
----
 
 ### Data Layer
 
@@ -436,16 +409,12 @@
   - Amazon RDS (PostgreSQL)
     - ใช้สำหรับ service หลัก (Order, Payment, User, etc.)
     - Multi-AZ + automated backup
-
 - Search:
   - Amazon OpenSearch (ElasticSearch)
     - ใช้สำหรับ product search
-
 - Cache:
   - Amazon ElastiCache (Redis)
     - ใช้สำหรับ caching, session, token
-
----
 
 ### Messaging & Event Streaming
 
@@ -454,55 +423,39 @@
   - รองรับ async communication ระหว่าง services
   - ใช้ร่วมกับ Outbox Pattern
 
----
-
 ### Storage
 
 - Amazon S3
   - เก็บ static assets (product images, documents)
   - ใช้เป็น object storage
 
----
-
 ### Security & Secrets
 
 - AWS Secrets Manager
   - เก็บ secrets เช่น database credentials, API keys
-
 - AWS KMS (Key Management Service)
   - จัดการ encryption keys
-
 - IAM (AWS Identity and Access Management)
   - ควบคุมสิทธิ์ของ service และ resource
-
----
 
 ### Observability
 
 - Metrics:
   - Prometheus + Grafana
-
 - Logging:
   - Loki
-
 - Tracing:
   - Jaeger + OpenTelemetry
-
----
 
 ### CI/CD (Optional - Recommended)
 
 - Source Control:
   - GitHub / GitLab
-
 - CI/CD Pipeline:
   - GitHub Actions / GitLab CI
-
 - Deployment:
   - ArgoCD (GitOps)
   - Helm Charts สำหรับ Kubernetes
-
----
 
 ### High Availability & Scalability
 
@@ -510,8 +463,6 @@
 - Auto Scaling (EKS + HPA)
 - Load Balancing (ALB + Istio)
 - Stateless services + externalized state
-
----
 
 ### Disaster Recovery
 
