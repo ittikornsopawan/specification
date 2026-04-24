@@ -70,9 +70,13 @@
   - ลด coupling และรองรับ scalability
 - Fault Tolerance
   - Retry: retry เมื่อเกิด transient failure
+    - ใช้ exponential backoff และ jitter เพื่อลด load
   - Circuit Breaker: ป้องกัน cascading failure
+    - เปิด circuit เมื่อ failure rate สูง และปิดเมื่อระบบกลับมา
   - Timeout: ป้องกัน request ค้าง
+    - กำหนด timeout ที่เหมาะสมสำหรับแต่ละ call
   - Idempotency: ป้องกันการประมวลผลซ้ำ (เช่น payment)
+    - ใช้ idempotency key และตรวจสอบก่อนประมวลผล
 
 ### ARCHITECTURE PATTERN
 
@@ -108,14 +112,35 @@
 
 #### Identity & Access Layer
 
-**User Serviec**:
+**IAM Service**:
 
-- Description: Manage user accounts, profiles, authentication data, and user-related domain logic.
+- Description: Manage authentication, authorization, and access control for users and services, including role-based access control (RBAC) and permission management.
 - Stack: GoLang
 - Database: PostgreSQL
 - Integration:
+  - User Service
   - Token Service
   - Session Service
+  - Tenant Service
+
+**Privacy Service**:
+
+- Description: Manage personally identifiable information (PII) and sensitive user data in compliance with PDPA and GDPR, including data encryption, masking, access control, audit logging, and data subject rights (excluding consent management).
+- Stack: GoLang
+- Database: PostgreSQL (with field-level encryption)
+- Integration:
+  - User Service
+  - Tenant Service
+  - IAM Service
+
+**User Service**:
+
+- Description: Manage user accounts, profiles, authentication data, and user-related domain logic.
+- Stack: GoLang
+- Database:
+  - PostgreSQL
+  - S3 (for profile images)
+- Integration:
   - Tenant Service
   - Notification Service
 
@@ -141,7 +166,7 @@
 
 - Description: Manage multi-tenant configuration, tenant isolation, and tenant-level settings.
 - Stack: GoLang
-- Database: PosgreSQL
+- Database: PostgreSQL
 - Integration:
   - User Service
   - Product Service
@@ -155,10 +180,11 @@
 **Product Service**:
 
 - Description: Manage product catalog, categories, attributes, and product search indexing.
-- Stack: Nest.js
+- Stack: NestJS
 - Database:
-  - PosgreSQL
+  - PostgreSQL
   - ElasticSearch
+  - S3 (for profile images)
 - Integration:
   - Inventory Service
   - Campaign & Promotion Service
@@ -168,15 +194,17 @@
 
 - Description: Handle stock levels, reservation, allocation, and inventory consistency.
 - Stack: GoLang
-- Database: PostgreSQL
+- Database:
+  - PostgreSQL
+  - S3 (for shelf images)
 - Integration:
   - Order Service
   - Product Service
 
 **Order Service**:
 
-- Description: Orchestrate order lifecycle, pricing, order state, and coordination with other services.
-- Stack: Nest.js
+- Description: Manage order lifecycle and coordinate order-related workflows across services.
+- Stack: NestJS
 - Database: PostgreSQL
 - Integration:
   - User Service
@@ -194,7 +222,7 @@
 **Subscription Service**:
 
 - Description: Manage subscription plans, billing cycles, and subscription lifecycle (trial, active, expired).
-- Stack: .NET C#
+- Stack: .NET
 - Database: PostgreSQL
 - Integration:
   - Payment Service
@@ -204,7 +232,7 @@
 **Payment Service**:
 
 - Description: Process payments, handle transactions, and manage payment execution and status.
-- Stack: .NET C#
+- Stack: .NET
 - Database: PostgreSQL
 - Integration:
   - Order Service
@@ -216,7 +244,7 @@
 **Settlement Service**:
 
 - Description: Aggregate and calculate settlement amounts for financial reconciliation and payouts.
-- Stack: .NET C#
+- Stack: .NET
 - Database: PostgreSQL
 - Integration:
   - Payment Service
@@ -226,7 +254,7 @@
 **Reconciliation Service**:
 
 - Description: Compare and verify transaction records between internal systems and external payment data.
-- Stack: .NET C#
+- Stack: .NET
 - Database: PostgreSQL
 - Integration:
   - Payment Service
@@ -236,7 +264,7 @@
 **Financial Service**:
 
 - Description: Maintain financial ledger, accounting records, and ensure auditability of all transactions.
-- Stack: .NET C#
+- Stack: .NET
 - Database: PostgreSQL
 - Integration:
   - Payment Service
@@ -246,13 +274,15 @@
 
 ---
 
-#### Fullfillment
+#### Fulfillment
 
 **Shipping Service**:
 
 - Description: Manage shipment creation, delivery tracking, and logistics coordination.
-- Stack: Nest.js
-- Database: PostgreSQL
+- Stack: NestJS
+- Database:
+  - PostgreSQL
+  - S3 (for shipping label images)
 - Integration:
   - Order Service
   - Inventory Service
@@ -266,8 +296,9 @@
 - Description: Evaluate promotion rules, discounts, and campaign eligibility for orders and products.
 - Stack: GoLang
 - Database:
-  - PosgreSQL
+  - PostgreSQL
   - Redis
+  - S3 (for campaign images)
 - Integration:
   - Product Service
   - Order Service
@@ -291,30 +322,201 @@
 
 ---
 
-### Backend For Frontend: BFF
+### BACKEND FOR FRONTEND (BFF)
 
-- Mobile App
-  - Stack: GraphQL
-- Web App
-  - Stack: GraphQL
+- แยก BFF layer ออกจาก Mobile และ Web เพื่อ optimize response และ handle client-specific logic
+- Responsibilities:
+  - Aggregate data จาก microservices หลายๆ ตัวให้เป็น response เดียวสำหรับ client
+  - Optimize response per client type
+  - Handle client-specific logic
+- Stack: GraphQL
+
+### FRONTEND
 
 #### Mobile Application
 
-- iOS
-  - Stack: Swift | Flutter
-- Android
-  - Stack: Kotlin | Flutter
+- iOS: Swift
+- Android: Kotlin
 
 #### Web Application
 
-- Stack: Next.js
+- Next.js
 
 ---
 
 ### OPERATIONAL INFRASTRUCTURE
 
+- Container & Orchestration:
+  - Docker
+  - Kubernetes
+- Networking & Gateway:
+  - Kong (API Gateway)
+  - Istio (Service Mesh, Load Balancing)
+- Messaging:
+  - Kafka
+- Caching:
+  - Redis
+- Observability:
+  - Prometheus
+  - Grafana
+  - Loki
+  - Jaeger
+  - OpenTelemetry
+- Secrets Management:
+  - AWS Secrets Manager
+
 ---
 
 ## CLOUD ARCHITECTURE
+
+![CLOUD ARCHITECTURE](asset/cloud-architecture.drawio.png)
+
+### Cloud Provider
+
+- AWS (Amazon Web Services)
+
+---
+
+### Network Architecture
+
+- VPC (Virtual Private Cloud)
+  - แยก environment: dev / staging / production
+  - ใช้ Multi-AZ เพื่อ high availability
+
+- Subnets:
+  - Public Subnet:
+    - Load Balancer (ALB)
+    - API Gateway (Kong)
+  - Private Subnet:
+    - Kubernetes Nodes (EKS)
+    - Internal Services
+    - Databases
+
+- Security:
+  - Security Groups และ NACLs ควบคุม traffic
+  - Private communication ระหว่าง services ผ่าน internal network
+
+---
+
+### Compute Layer
+
+- Amazon EKS (Kubernetes)
+  - ใช้ deploy microservices ทั้งหมด
+  - รองรับ auto-scaling (HPA / Cluster Autoscaler)
+  - แยก namespace ตาม domain หรือ environment
+
+- Container Runtime:
+  - Docker
+
+---
+
+### API & Traffic Management
+
+- AWS Application Load Balancer (ALB)
+  - รับ traffic จาก client (Web / Mobile)
+  - Forward ไปยัง API Gateway
+
+- Kong API Gateway
+  - Routing ไปยัง BFF
+  - Handle authentication (JWT), rate limiting, request validation
+
+- BFF (GraphQL)
+  - Deploy บน EKS
+  - Aggregate data จาก microservices
+
+- Istio Service Mesh
+  - Service-to-service communication (mTLS)
+  - Traffic control, retry, circuit breaking
+
+---
+
+### Data Layer
+
+- Relational Database:
+  - Amazon RDS (PostgreSQL)
+    - ใช้สำหรับ service หลัก (Order, Payment, User, etc.)
+    - Multi-AZ + automated backup
+
+- Search:
+  - Amazon OpenSearch (ElasticSearch)
+    - ใช้สำหรับ product search
+
+- Cache:
+  - Amazon ElastiCache (Redis)
+    - ใช้สำหรับ caching, session, token
+
+---
+
+### Messaging & Event Streaming
+
+- Apache Kafka (Amazon MSK)
+  - ใช้สำหรับ event-driven architecture
+  - รองรับ async communication ระหว่าง services
+  - ใช้ร่วมกับ Outbox Pattern
+
+---
+
+### Storage
+
+- Amazon S3
+  - เก็บ static assets (product images, documents)
+  - ใช้เป็น object storage
+
+---
+
+### Security & Secrets
+
+- AWS Secrets Manager
+  - เก็บ secrets เช่น database credentials, API keys
+
+- AWS KMS (Key Management Service)
+  - จัดการ encryption keys
+
+- IAM (AWS Identity and Access Management)
+  - ควบคุมสิทธิ์ของ service และ resource
+
+---
+
+### Observability
+
+- Metrics:
+  - Prometheus + Grafana
+
+- Logging:
+  - Loki
+
+- Tracing:
+  - Jaeger + OpenTelemetry
+
+---
+
+### CI/CD (Optional - Recommended)
+
+- Source Control:
+  - GitHub / GitLab
+
+- CI/CD Pipeline:
+  - GitHub Actions / GitLab CI
+
+- Deployment:
+  - ArgoCD (GitOps)
+  - Helm Charts สำหรับ Kubernetes
+
+---
+
+### High Availability & Scalability
+
+- Multi-AZ deployment
+- Auto Scaling (EKS + HPA)
+- Load Balancing (ALB + Istio)
+- Stateless services + externalized state
+
+---
+
+### Disaster Recovery
+
+- Database backup (RDS automated snapshots)
+- S3 versioning
+- Multi-region replication (optional)
 
 ---
