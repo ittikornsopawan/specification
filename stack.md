@@ -4,18 +4,49 @@
 
 ---
 
-## สารบัญ
+## Table of Contents
 
+- [System Architecture Overview](#system-architecture-overview)
 - [Terms and Definitions](#terms-and-definitions)
-- [Backend](#backend)
-- [Frontend](#frontend)
-- [Database](#database)
-- [Storage](#storage)
-- [Cache](#cache)
-- [Recommended Stack by Platform](#recommended-stack-by-platform)
-- [Decision Matrix](#decision-matrix)
-- [Quick Summary](#quick-summary)
-- [Final Thoughts](#final-thoughts)
+- Stack
+  - [Backend](#backend)
+  - [Frontend](#frontend)
+  - [Database](#database)
+  - [Storage](#storage)
+  - [Cache](#cache)
+
+---
+
+## System Architecture Overview
+
+ก่อนลงรายละเอียดแต่ละส่วน ลองดูภาพรวมก่อนว่าแต่ละ component ในระบบเชื่อมกันอย่างไร เพื่อให้เห็นว่า Backend, Frontend, Database, Storage และ Cache ที่จะพูดถึงต่อไปนี้ ทำหน้าที่อะไรในภาพใหญ่
+
+```mermaid
+flowchart LR
+    U["ผู้ใช้งาน (User)"] --> FE["Frontend
+React / Next.js / Vue / Angular"]
+    FE -->|"เรียกผ่าน API
+(REST / GraphQL / WebSocket)"| BE["Backend
+API + Business Logic"]
+    BE --> DB[("Database
+PostgreSQL / MongoDB / MySQL")]
+    BE --> CA[("Cache
+Redis")]
+    BE --> ST[("Storage
+AWS S3 / MinIO")]
+    ST --> CDN["CDN
+(CloudFront)"]
+    CDN --> U
+```
+
+อ่านแผนภาพนี้แบบง่าย ๆ ได้ตามนี้:
+
+- **Frontend** คือสิ่งที่ผู้ใช้เห็นและกดใช้งาน แล้วส่ง request ไปหา Backend ผ่าน API
+- **Backend** รับ request มาประมวลผลตาม business logic แล้วไปอ่าน/เขียนข้อมูลที่ **Database**
+- **Cache** (เช่น Redis) ช่วยให้ Backend ดึงข้อมูลที่ใช้บ่อยได้เร็วขึ้น โดยไม่ต้องไปที่ Database ทุกครั้ง
+- **Storage** (เช่น AWS S3) เก็บไฟล์อย่างรูปภาพหรือเอกสาร แล้วส่งต่อให้ผู้ใช้อย่างรวดเร็วผ่าน **CDN**
+
+ส่วนถัดไปของเอกสารจะอธิบายแต่ละ component เหล่านี้ทีละส่วน พร้อมตัวเลือกที่แนะนำและเหตุผลประกอบ
 
 ---
 
@@ -84,6 +115,183 @@
 
 ---
 
+## API Style (REST / GraphQL / WebSocket)
+
+ก่อนจะลงรายละเอียดเรื่อง backend framework ส่วนนี้จะช่วยให้เลือก "รูปแบบการสื่อสาร" ระหว่าง frontend กับ backend ก่อน เพราะมีผลต่อการออกแบบ API เครื่องมือที่ใช้ และวิธีคิดเรื่อง data fetching ตลอดทั้งระบบ
+
+```mermaid
+flowchart TD
+    A["เริ่มเลือก API Style"] --> B{"ต้องการอะไรเป็นหลัก?"}
+    B -->|"CRUD ทั่วไป เน้นความเรียบง่าย
+และ caching ที่ดี"| C["REST"]
+    B -->|"Frontend ต้องการความยืดหยุ่นในการขอข้อมูล
+ลด over-/under-fetching"| D["GraphQL"]
+    B -->|"ต้องการสื่อสารแบบ
+real-time สองทาง"| E["WebSocket"]
+```
+
+ทั้งสามแบบไม่ได้แยกขาดจากกัน ระบบจริงมักใช้ผสมกัน เช่น ใช้ REST หรือ GraphQL เป็นหลักแล้วเสริมด้วย WebSocket สำหรับ feature แบบ real-time เช่น แชทหรือการแจ้งเตือน
+
+---
+
+### 1. REST (Representational State Transfer)
+
+มาตรฐานที่ใช้กันแพร่หลายที่สุด เรียบง่าย เข้าใจง่าย และมี ecosystem รองรับครบ
+
+**น่าใช้เพราะ:**
+
+- เป็น industry standard ที่นักพัฒนาส่วนใหญ่คุ้นเคย
+- ใช้ HTTP method/status code ที่เข้าใจง่าย (GET, POST, PUT, DELETE)
+- cache ได้ง่ายด้วย HTTP caching มาตรฐาน
+- มี tooling, documentation และ library รองรับครบ
+
+**ข้อดี:**
+
+- เรียนรู้และเริ่มต้นได้ง่าย
+- cache ที่ระดับ HTTP/CDN ได้ดี
+- มี ecosystem และ tooling ใหญ่ที่สุด
+- เหมาะกับงาน CRUD ทั่วไป
+- debug และ monitor ได้ง่ายด้วยเครื่องมือมาตรฐาน
+
+**ข้อเสีย:**
+
+- มักเจอปัญหา over-fetching/under-fetching (ได้ข้อมูลเกินหรือขาดจากที่ต้องใช้)
+- เวลาต้องการข้อมูลจากหลาย resource อาจต้องยิง request หลายครั้ง
+- การทำ versioning ของ API ซับซ้อนขึ้นเมื่อระบบโตขึ้น
+- schema/contract ระหว่าง frontend-backend ไม่ชัดเจนเท่า GraphQL
+
+**เหมาะกับ:** งาน CRUD ทั่วไป, public API, ระบบที่ต้องการ caching ที่ดีและ tooling ที่เป็นมาตรฐาน
+
+**💰 ช่วงเงินเดือนผู้ที่ชำนาญ REST API (Backend Engineer, กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿28,000 - ฿45,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿50,000 - ฿85,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿95,000 - ฿160,000+ |
+
+> REST เป็นทักษะพื้นฐานที่ Backend Developer แทบทุกคนต้องมี จึงไม่ใช่ปัจจัยที่ทำให้เงินเดือนต่างจากฐาน Backend Engineer ทั่วไป
+
+---
+
+### 2. GraphQL
+
+query language ที่ให้ frontend "ขอข้อมูลเท่าที่ต้องการ" ได้ในคำขอเดียว เหมาะกับระบบที่มีหน้าจอหลากหลายและซับซ้อน
+
+**น่าใช้เพราะ:**
+
+- frontend กำหนดเองได้ว่าต้องการ field ไหนบ้าง ลดปัญหา over-/under-fetching
+- รวมข้อมูลจากหลาย resource ได้ในคำขอเดียว
+- มี schema/type system ที่ชัดเจน ทำให้ frontend-backend ทำงานคู่กันง่ายขึ้น
+- มี tooling อย่าง GraphiQL/Apollo ช่วยให้ explore และ debug API ได้สะดวก
+
+**ข้อดี:**
+
+- ลดจำนวน request ที่ frontend ต้องยิง โดยเฉพาะหน้าจอที่ซับซ้อน
+- มี strong typing ทำให้ตรวจพบ error ได้ตั้งแต่ตอน develop
+- ทำ versioning ได้ง่ายกว่า REST (เพิ่ม field ใหม่โดยไม่กระทบของเดิม)
+- เหมาะกับทีมที่มีหลาย client (web, mobile) ที่ต้องการข้อมูลต่างรูปแบบกัน
+- community และ ecosystem เติบโตต่อเนื่อง (Apollo, Hasura, Relay)
+
+**ข้อเสีย:**
+
+- เรียนรู้และตั้งค่าเริ่มต้นซับซ้อนกว่า REST
+- cache ที่ระดับ HTTP/CDN ได้ยากกว่า เพราะมักใช้ endpoint เดียวเป็นหลัก
+- ต้องระวังเรื่อง query ที่ซับซ้อนเกินไป ซึ่งอาจกระทบ performance ของ backend
+- ต้องจัดการเรื่อง security เพิ่มเติม เช่น query depth/complexity limiting
+- debug และ monitor ยากกว่า REST เล็กน้อยเพราะรวมอยู่ที่ endpoint เดียว
+
+**เหมาะกับ:** ระบบที่มีหลาย client (web, mobile, partner API), หน้าจอที่ซับซ้อนและต้องการข้อมูลหลากหลาย, ทีมที่ frontend และ backend ทำงานคู่ขนานกันบ่อย
+
+**💰 ช่วงเงินเดือนผู้ที่ชำนาญ GraphQL (Backend/Full-stack Engineer, กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน         |
+| ---------------- | --------- | -------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿30,000 - ฿48,000    |
+| Mid-level (Mid.) | 2-5 ปี     | ฿52,000 - ฿90,000    |
+| Senior (Sr.)     | 5+ ปี      | ฿100,000 - ฿170,000+ |
+
+> GraphQL เริ่มเป็นที่ต้องการมากขึ้น โดยเฉพาะในทีมที่มีหลาย client พร้อมกัน จึงมักได้ premium เล็กน้อยเหนือฐาน REST/Backend ทั่วไป แต่ในตลาดไทยยังไม่ใช่ตำแหน่งเฉพาะทางแยกต่างหาก มักรวมอยู่ในทักษะของ Backend/Full-stack Engineer
+
+---
+
+### 3. WebSocket
+
+ช่องทางสื่อสารแบบสองทางและต่อเนื่อง (persistent connection) เหมาะกับงานที่ต้องอัปเดตข้อมูลแบบ real-time
+
+**น่าใช้เพราะ:**
+
+- สื่อสารแบบ real-time สองทางได้โดยไม่ต้อง poll ซ้ำ ๆ
+- latency ต่ำ เหมาะกับ feature ที่ต้องอัปเดตทันที เช่น แชท, แจ้งเตือน, live feed
+- ใช้ connection เดียวคุยกันต่อเนื่องได้ ลด overhead จากการเปิด-ปิด connection ใหม่ทุกครั้ง
+- รองรับโดย browser และ framework ส่วนใหญ่อยู่แล้ว
+
+**ข้อดี:**
+
+- เหมาะกับงาน real-time เช่น แชท, notification, live feed, collaborative editing
+- ลด overhead เมื่อเทียบกับการ polling ซ้ำ ๆ ผ่าน REST
+- สื่อสารสองทางได้ (server ส่งข้อมูลหา client ได้โดยไม่ต้องรอ request)
+- ผสานกับ Pub/Sub (เช่น Redis) เพื่อ scale ได้ดี
+
+**ข้อเสีย:**
+
+- ดูแล connection จำนวนมากซับซ้อนกว่า REST/GraphQL
+- ทำ caching แบบ HTTP มาตรฐานไม่ได้
+- ต้องดูแลเรื่อง scaling/load balancing ของ persistent connection เป็นพิเศษ
+- ใช้กับงานที่ไม่ใช่ real-time จะเป็นการ overkill
+
+**เหมาะกับ:** แชท, notification แบบ real-time, live feed (Social Network), การอัปเดตสถานะ order/payment แบบทันที (E-Commerce/E-Wallet)
+
+**💰 ช่วงเงินเดือนผู้ที่ชำนาญ WebSocket / Real-time Systems (Backend Engineer, กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿28,000 - ฿48,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿50,000 - ฿88,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿95,000 - ฿165,000+ |
+
+> เป็นทักษะเสริมของ Backend Engineer ที่ทำงานด้าน real-time feature ฐานใกล้เคียงกับ Backend ทั่วไป แต่ระบบที่เน้น real-time สูง เช่น แชทหรือ trading platform อาจให้ premium เพิ่มสำหรับผู้ที่มีประสบการณ์ตรง
+
+---
+
+### API Style Comparison
+
+หลังจากดูแต่ละแบบไปแล้ว ส่วนนี้สรุปภาพรวมให้เทียบกันได้ในมุมกว้างขึ้น ว่าแต่ละแบบเด่นเรื่องอะไร และเหมาะกับสถานการณ์แบบไหน
+
+| ปัจจัย           | REST                                    | GraphQL                            | WebSocket                      |
+| -------------- | --------------------------------------- | ---------------------------------- | ------------------------------ |
+| Communication  | Request-Response (HTTP)                 | Request-Response (single endpoint) | Persistent, สองทาง (real-time) |
+| Data Fetching  | กำหนดตาม endpoint (อาจ over/under-fetch) | Frontend กำหนด field เองได้          | ส่งข้อมูลแบบ event/stream ต่อเนื่อง  |
+| Caching        | ทำได้ง่ายด้วย HTTP caching                  | ทำได้ยากกว่า (endpoint เดียว)          | ทำ caching แบบ HTTP ไม่ได้        |
+| Learning Curve | ต่ำ                                       | ปานกลางถึงสูง                        | ปานกลาง                        |
+| Best Use Case  | CRUD ทั่วไป, public API                   | ระบบหลาย client, หน้าจอซับซ้อน        | แชท, notification, live feed   |
+
+**เลือก REST ถ้า:**
+
+- ต้องการความเรียบง่าย เริ่มต้นเร็ว และทีมคุ้นเคยอยู่แล้ว
+- ระบบเน้นงาน CRUD ทั่วไปและต้องการ caching ที่ดีที่ระดับ HTTP/CDN
+- ต้องการ tooling และ ecosystem ที่เป็นมาตรฐานและครบที่สุด
+
+**เลือก GraphQL ถ้า:**
+
+- มีหลาย client (web, mobile, partner) ที่ต้องการข้อมูลรูปแบบต่างกัน
+- หน้าจอมีความซับซ้อนและมักต้องรวมข้อมูลจากหลาย resource
+- ต้องการลด over-/under-fetching และมี schema/contract ที่ชัดเจนระหว่างทีม
+
+**เลือก WebSocket ถ้า:**
+
+- ต้องการ feature แบบ real-time สองทาง เช่น แชท, แจ้งเตือน, live feed
+- ไม่ต้องการให้ client ต้อง polling ซ้ำ ๆ เพื่อเช็คข้อมูลใหม่
+- ทีมพร้อมดูแล persistent connection และการ scale ของระบบ real-time
+
+**สรุป:**
+
+- [X] **REST** เป็นตัวเลือกหลักสำหรับ API ทั่วไป เพราะเรียบง่าย เป็นมาตรฐาน และ caching ได้ดี
+- [ ] **GraphQL** เป็นทางเลือกเมื่อระบบมีหลาย client หรือหน้าจอที่ซับซ้อนและต้องการความยืดหยุ่นในการขอข้อมูล
+- [X] **WebSocket** เป็นตัวช่วยเสริมสำหรับ feature แบบ real-time เช่น แชทหรือการแจ้งเตือน ใช้คู่กับ REST/GraphQL ได้
+
+---
+
 ## Backend
 
 Backend คือส่วนที่รับผิดชอบ API, business logic, authentication, authorization, transaction processing, การเชื่อมต่อ database/cache/storage และการสื่อสารระหว่าง services
@@ -97,11 +305,40 @@ Backend คือส่วนที่รับผิดชอบ API, business 
 - เหมาะกับการทำ microservices หรือ enterprise system หรือเปล่า
 - deploy และดูแลรักษาในระยะยาวง่ายแค่ไหน
 
+แผนภาพด้านล่างเป็นจุดเริ่มต้นคร่าว ๆ สำหรับมองหา platform ที่เข้ากับทีม จากนั้นค่อยอ่านรายละเอียดแต่ละ framework เพื่อตัดสินใจอีกที:
+
+```mermaid
+flowchart TD
+    A["เริ่มเลือก Backend"] --> B{"ทีมถนัดภาษา/เทคโนโลยีอะไร?"}
+    B -->|"JavaScript / TypeScript"| C["Node.js Platform
+(Express / NestJS)"]
+    B -->|"Python"| D["Python Platform
+(FastAPI / Django)"]
+    B -->|"Go"| E["Golang Platform
+(Gin / Echo)"]
+    B -->|"Java"| F["Java Platform
+(Spring Boot)"]
+    B -->|"C# / .NET"| G[".NET Platform
+(Minimal APIs / Controller-based APIs)"]
+```
+
+ทุก platform ด้านล่างนี้จะอธิบายตามโครงสร้างเดียวกัน คือ แนะนำ framework แต่ละตัว → จุดเด่น/ข้อดี/ข้อเสีย/เหมาะกับอะไร → ตารางเปรียบเทียบ → เกณฑ์การเลือก → สรุป เพื่อให้เทียบกันได้ง่ายในแต่ละ platform
+
+> 💰 **หมายเหตุเรื่องเงินเดือน:** ทุก stack ในเอกสารนี้ (Backend, Frontend, Database, Storage, Cache) จะมีตารางช่วงเงินเดือนโดยประมาณกำกับไว้ แบ่งเป็น Junior (Jr.), Mid-level (Mid.) และ Senior (Sr.) อ้างอิงจากข้อมูลตลาดงานสาย IT ในกรุงเทพฯ ช่วงปี 2026 (เช่น JobsDB, Nodeflair, Second Talent, PayScale) ตัวเลขเป็น**ช่วงโดยประมาณเพื่อใช้วางแผนงบประมาณคร่าว ๆ เท่านั้น** เพราะเงินเดือนจริงขึ้นอยู่กับบริษัท ทักษะเฉพาะตัว ภาษาอังกฤษ และทำเลที่ตั้งด้วย โดยทั่วไปแล้วเงินเดือนจะผูกกับ "ภาษา/แพลตฟอร์ม" ที่ถนัดมากกว่า framework เฉพาะตัว (เช่น Express กับ NestJS ใช้ฐานเงินเดือนเดียวกันเพราะเป็น Node.js เหมือนกัน) ตารางด้านล่างจึงแสดงไว้ที่ระดับ platform/เทคโนโลยีหลักของแต่ละหัวข้อ
+
 ---
 
 ### 1. Node.js Platform
 
 Node.js เหมาะกับระบบที่ต้องการพัฒนาเร็ว มี ecosystem ใหญ่ และทีมคุ้นเคยกับ JavaScript/TypeScript อยู่แล้ว โดยเฉพาะระบบ API, real-time feature หรือ microservices ที่ต้องการความคล่องตัวสูง
+
+**💰 ช่วงเงินเดือน Node.js Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿28,000 - ฿45,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿48,000 - ฿85,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿90,000 - ฿160,000+ |
 
 #### Express
 
@@ -174,18 +411,18 @@ NestJS เป็น Node.js framework ที่ใช้ TypeScript เป็น
 
 #### Express vs NestJS — เปรียบเทียบ
 
-| ปัจจัย                | Express                       | NestJS                   |
-| --------------------- | ----------------------------- | ------------------------ |
-| Style                 | Lightweight / Flexible        | Opinionated / Structured |
-| Learning Curve        | ง่าย                          | ยากกว่า                  |
-| Boilerplate           | ต่ำ                           | สูงกว่า                  |
-| Built-in Features     | น้อย ต้องเลือกเอง             | เยอะกว่า                 |
-| Architecture          | ต้องออกแบบเอง                 | มี convention ชัดเจน     |
-| Dependency Injection  | ต้องใช้ library เพิ่มหรือทำเอง | มีในตัว (built-in)       |
-| TypeScript Support    | ดี ถ้าตั้งค่าเอง               | ดีมาก                    |
-| Large Projects        | ทำได้ แต่ต้องมี standard ชัด   | เหมาะกว่า                |
-| Development Speed     | เร็วมากตอนเริ่มต้น            | เร็วเมื่อทีมคุ้นกับ framework |
-| Maintainability       | ขึ้นอยู่กับวินัยของทีม         | ดีกว่าเมื่อระบบใหญ่ขึ้น   |
+| ปัจจัย                 | Express                  | NestJS                   |
+| -------------------- | ------------------------ | ------------------------ |
+| Style                | Lightweight / Flexible   | Opinionated / Structured |
+| Learning Curve       | ง่าย                      | ยากกว่า                   |
+| Boilerplate          | ต่ำ                        | สูงกว่า                    |
+| Built-in Features    | น้อย ต้องเลือกเอง           | เยอะกว่า                  |
+| Architecture         | ต้องออกแบบเอง             | มี convention ชัดเจน       |
+| Dependency Injection | ต้องใช้ library เพิ่มหรือทำเอง | มีในตัว (built-in)         |
+| TypeScript Support   | ดี ถ้าตั้งค่าเอง              | ดีมาก                     |
+| Large Projects       | ทำได้ แต่ต้องมี standard ชัด   | เหมาะกว่า                 |
+| Development Speed    | เร็วมากตอนเริ่มต้น           | เร็วเมื่อทีมคุ้นกับ framework   |
+| Maintainability      | ขึ้นอยู่กับวินัยของทีม           | ดีกว่าเมื่อระบบใหญ่ขึ้น         |
 
 **เลือก Express ถ้า:**
 
@@ -211,6 +448,14 @@ NestJS เป็น Node.js framework ที่ใช้ TypeScript เป็น
 ### 2. Python Platform
 
 Python เหมาะกับระบบที่ต้องการความเร็วในการพัฒนาสูง อ่าน code ง่าย และเชื่อมต่อกับ data, automation, AI หรือ ML ecosystem ได้ดี
+
+**💰 ช่วงเงินเดือน Python Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿28,000 - ฿45,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿48,000 - ฿85,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿90,000 - ฿150,000+ |
 
 #### FastAPI
 
@@ -283,18 +528,18 @@ Django เป็น full-featured Python web framework ที่มี ORM, admi
 
 #### FastAPI vs Django — เปรียบเทียบ
 
-| ปัจจัย            | FastAPI                    | Django                      |
-| ----------------- | -------------------------- | --------------------------- |
-| Use Case          | Modern API / Microservices | Full web application / CMS  |
-| Style             | API-first                  | Batteries-included          |
-| Learning Curve    | ค่อนข้างง่าย               | ปานกลาง                     |
-| Async Support     | ดีมาก                      | มี แต่ไม่ใช่จุดเด่นหลัก     |
-| Built-in Features | น้อยกว่า                   | เยอะมาก                     |
+| ปัจจัย              | FastAPI                    | Django                     |
+| ----------------- | -------------------------- | -------------------------- |
+| Use Case          | Modern API / Microservices | Full web application / CMS |
+| Style             | API-first                  | Batteries-included         |
+| Learning Curve    | ค่อนข้างง่าย                  | ปานกลาง                    |
+| Async Support     | ดีมาก                       | มี แต่ไม่ใช่จุดเด่นหลัก           |
+| Built-in Features | น้อยกว่า                     | เยอะมาก                    |
 | Validation        | Pydantic built-in          | ใช้ form/serializer pattern |
-| ORM               | เลือกเอง                   | Django ORM built-in         |
-| Admin Panel       | ไม่มี                      | มีให้เลย                    |
-| API Docs          | Built-in                   | ต้องใช้ library เพิ่ม       |
-| AI/ML Integration | ดีมาก                      | ดี แต่ framework หนักกว่า   |
+| ORM               | เลือกเอง                    | Django ORM built-in        |
+| Admin Panel       | ไม่มี                        | มีให้เลย                     |
+| API Docs          | Built-in                   | ต้องใช้ library เพิ่ม          |
+| AI/ML Integration | ดีมาก                       | ดี แต่ framework หนักกว่า      |
 
 **เลือก FastAPI ถ้า:**
 
@@ -320,6 +565,16 @@ Django เป็น full-featured Python web framework ที่มี ORM, admi
 ### 3. Golang Platform
 
 Go เหมาะกับ backend ที่ต้องการ performance สูง, ใช้ memory น้อย, มี concurrency ที่ดี และ deploy ง่าย เหมาะมากกับ high-throughput service, payment service, API gateway และ microservices
+
+**💰 ช่วงเงินเดือน Go (Golang) Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน         |
+| ---------------- | --------- | -------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿32,000 - ฿50,000    |
+| Mid-level (Mid.) | 2-5 ปี     | ฿55,000 - ฿95,000    |
+| Senior (Sr.)     | 5+ ปี      | ฿100,000 - ฿180,000+ |
+
+> Go เป็นทักษะที่ตลาดต้องการแต่หาคนที่ชำนาญจริงได้ยากกว่า ภาษาอื่น ทำให้ฐานเงินเดือนมักสูงกว่า Node.js/Python ในระดับประสบการณ์เดียวกัน
 
 #### Gin
 
@@ -389,15 +644,15 @@ Echo เป็น Go web framework ที่มี built-in feature มากก
 
 #### Gin vs Echo — เปรียบเทียบ
 
-| ปัจจัย            | Gin                          | Echo                              |
+| ปัจจัย              | Gin                          | Echo                              |
 | ----------------- | ---------------------------- | --------------------------------- |
-| Performance       | ดีเยี่ยม                     | ดีเยี่ยม                          |
-| Learning Curve    | ค่อนข้างง่าย                 | ค่อนข้างง่าย                      |
-| Built-in Features | น้อยกว่า                     | มากกว่า                           |
-| Middleware        | ดี                           | ดีมาก                             |
-| Validation        | ต้องจัดเพิ่มเอง              | มี support ดีกว่า                 |
+| Performance       | ดีเยี่ยม                        | ดีเยี่ยม                             |
+| Learning Curve    | ค่อนข้างง่าย                    | ค่อนข้างง่าย                         |
+| Built-in Features | น้อยกว่า                       | มากกว่า                            |
+| Middleware        | ดี                            | ดีมาก                              |
+| Validation        | ต้องจัดเพิ่มเอง                  | มี support ดีกว่า                    |
 | Binding           | Simple                       | Advanced                          |
-| Development Speed | เร็ว                         | เร็วกว่า Gin เล็กน้อย             |
+| Development Speed | เร็ว                          | เร็วกว่า Gin เล็กน้อย                 |
 | Best Use Case     | Minimal high-performance API | Feature-rich high-performance API |
 
 **เลือก Gin ถ้า:**
@@ -421,9 +676,21 @@ Echo เป็น Go web framework ที่มี built-in feature มากก
 
 ---
 
-### 4. Java + Spring Boot
+### 4. Java Platform
 
-Spring Boot เหมาะกับระบบ enterprise ที่ต้องการความมั่นคงสูง, ecosystem ครบ, security แข็งแรง และรองรับ business logic ที่ซับซ้อนในระยะยาว
+Java เหมาะกับระบบ enterprise ที่ต้องการความมั่นคงสูง ใช้งานมายาวนาน และมี ecosystem ที่ผ่านการพิสูจน์แล้วในระบบขนาดใหญ่ระดับธนาคารหรือองค์กร
+
+**💰 ช่วงเงินเดือน Java Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿30,000 - ฿48,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿50,000 - ฿90,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿95,000 - ฿170,000+ |
+
+#### Spring Boot
+
+Spring Boot เป็น framework หลักของฝั่ง Java สำหรับงาน enterprise โดยเฉพาะ จุดเด่นคือความมั่นคงสูง, ecosystem ครบ, security แข็งแรง และรองรับ business logic ที่ซับซ้อนในระยะยาว
 
 **น่าใช้เพราะ:**
 
@@ -455,6 +722,15 @@ Spring Boot เหมาะกับระบบ enterprise ที่ต้อ�
 
 **เหมาะกับ:** banking, payment, enterprise E-Commerce, ERP, CRM, ระบบ internal ขนาดใหญ่
 
+> หมายเหตุ: ต่างจาก platform อื่นที่มีให้เลือกสองตัว ฝั่ง Java ส่วนใหญ่ทีมจะเลือก Spring Boot เป็นมาตรฐานอยู่แล้ว จึงไม่มีคู่เปรียบเทียบโดยตรงในระดับ framework — แต่ยังใช้เกณฑ์การพิจารณาแบบเดียวกับ platform อื่น (ความถนัดของทีม, performance, ความซับซ้อนของ business logic, การดูแลรักษาในระยะยาว) เพื่อช่วยตัดสินใจว่า platform นี้เหมาะกับโปรเจกต์หรือไม่
+
+**เลือก Spring Boot ถ้า:**
+
+- ทำระบบ enterprise ที่ต้องการความมั่นคงและความน่าเชื่อถือสูง เช่น banking หรือ payment
+- ทีมคุ้นเคยกับ Java/Spring ecosystem อยู่แล้ว
+- ต้องการ framework ที่ mature ผ่านการใช้งานจริงมานาน และมี security feature แข็งแรง
+- ระบบมี business logic ซับซ้อนและต้อง maintain ไปอีกหลายปี
+
 **สรุป:**
 
 - [X] **Spring Boot** สำหรับระบบ enterprise ที่ต้องการความ mature และ ecosystem ครบ
@@ -465,6 +741,14 @@ Spring Boot เหมาะกับระบบ enterprise ที่ต้อ�
 ### 5. .NET Core C# / ASP.NET Core
 
 ASP.NET Core เหมาะกับ backend ที่ต้องการ performance ดี, strong typing, tooling ครบ และรองรับได้ทั้ง microservices และ enterprise system
+
+**💰 ช่วงเงินเดือน .NET / C# Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿28,000 - ฿46,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿48,000 - ฿85,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿90,000 - ฿160,000+ |
 
 สิ่งที่ควรเข้าใจก่อนคือ **Minimal APIs** และ **Controller-based APIs** ไม่ใช่คนละ framework แต่เป็นคนละรูปแบบการเขียน API บน ASP.NET Core เหมือนกัน ทั้งสองใช้ runtime, middleware, dependency injection และ ecosystem เดียวกัน
 
@@ -588,19 +872,19 @@ Controller-based APIs คือรูปแบบ ASP.NET Core Web API ที่
 
 #### Minimal APIs vs Controller-based APIs — เปรียบเทียบ
 
-| ปัจจัย                   | Minimal APIs               | Controller-based APIs   |
-| ------------------------ | -------------------------- | ----------------------- |
-| Framework                | ASP.NET Core               | ASP.NET Core            |
-| Style                    | Endpoint-based             | Controller/Action-based |
-| Boilerplate              | ต่ำ                        | สูงกว่า                 |
-| Setup Time               | เร็ว                       | ปานกลาง                 |
-| Convention               | ต้องกำหนดเอง               | ชัดเจนกว่า              |
-| Dependency Injection     | มีในตัว (built-in)         | มีในตัว (built-in)      |
-| Middleware               | ใช้ได้เหมือนกัน            | ใช้ได้เหมือนกัน         |
-| Class Library / Layering | ใช้ร่วมกันได้ดี            | ใช้ร่วมกันได้ดี         |
-| Large Projects           | ได้ ถ้ามี structure ชัดเจน | เหมาะกว่า               |
-| Performance              | Excellent                  | Excellent               |
-| Enterprise Features      | ทำได้ แต่ต้องจัด pattern เอง | พร้อมใช้มากกว่า       |
+| ปัจจัย                     | Minimal APIs            | Controller-based APIs   |
+| ------------------------ | ----------------------- | ----------------------- |
+| Framework                | ASP.NET Core            | ASP.NET Core            |
+| Style                    | Endpoint-based          | Controller/Action-based |
+| Boilerplate              | ต่ำ                       | สูงกว่า                   |
+| Setup Time               | เร็ว                     | ปานกลาง                 |
+| Convention               | ต้องกำหนดเอง              | ชัดเจนกว่า                |
+| Dependency Injection     | มีในตัว (built-in)        | มีในตัว (built-in)        |
+| Middleware               | ใช้ได้เหมือนกัน             | ใช้ได้เหมือนกัน             |
+| Class Library / Layering | ใช้ร่วมกันได้ดี              | ใช้ร่วมกันได้ดี              |
+| Large Projects           | ได้ ถ้ามี structure ชัดเจน  | เหมาะกว่า                |
+| Performance              | Excellent               | Excellent               |
+| Enterprise Features      | ทำได้ แต่ต้องจัด pattern เอง | พร้อมใช้มากกว่า            |
 
 **เลือก Minimal APIs ถ้า:**
 
@@ -623,6 +907,59 @@ Controller-based APIs คือรูปแบบ ASP.NET Core Web API ที่
 
 ---
 
+### Backend Comparison
+
+หลังจากดูแต่ละ platform ทีละตัวไปแล้ว ส่วนนี้สรุปภาพรวมให้เทียบกันได้ในมุมกว้างขึ้น ว่าแต่ละ platform เด่นเรื่องอะไร และเหมาะกับสถานการณ์แบบไหน
+
+| ปัจจัย                 | Node.js                                         | Python                          | Go                                              | Java                        | .NET                                   |
+| -------------------- | ----------------------------------------------- | ------------------------------- | ----------------------------------------------- | --------------------------- | -------------------------------------- |
+| Frameworks ในเอกสารนี้ | Express / NestJS                                | FastAPI / Django                | Gin / Echo                                      | Spring Boot                 | Minimal APIs / Controller-based APIs   |
+| Performance          | ดี                                               | พอใช้                            | ดีมาก                                            | ดี                           | ดีมาก                                   |
+| Learning Curve       | ง่ายถึงปานกลาง                                    | ง่ายถึงปานกลาง                    | ปานกลาง                                         | สูง                          | ปานกลางถึงสูง                            |
+| Development Speed    | เร็วมาก                                          | เร็วมาก                          | ปานกลาง                                         | ช้ากว่า platform อื่น           | เร็ว                                    |
+| Concurrency Model    | Event loop (async/await)                        | async/await (โดยเฉพาะ FastAPI)  | Goroutines (จุดเด่นที่สุด)                           | Thread-based แบบ mature     | async/await + strong typing            |
+| Typing               | TypeScript (เลือกใช้ได้)                           | Type hints (เลือกใช้ได้)           | Static typing                                   | Static typing               | Static typing                          |
+| Ecosystem            | ใหญ่ที่สุด (npm)                                    | ใหญ่มาก โดยเฉพาะสาย AI/ML/Data   | ปานกลาง เน้น cloud-native                        | ใหญ่มาก ฝั่ง enterprise        | ใหญ่ ฝั่ง Microsoft/.NET                  |
+| Best Use Case        | Rapid development, real-time API, microservices | API-first, data/AI service, CMS | High-performance microservices, payment service | Enterprise / banking system | Enterprise API, cross-platform service |
+
+**เลือก Node.js Platform ถ้า:**
+
+- ทีมถนัด JavaScript/TypeScript อยู่แล้ว และต้องการพัฒนาเร็ว
+- ทำ API ทั่วไป, real-time feature หรือ microservices ที่ scope ไม่ใหญ่มาก
+- ต้องการ build prototype หรือ MVP ให้เสร็จไว
+
+**เลือก Python Platform ถ้า:**
+
+- ระบบต้องเชื่อมกับงาน data, automation หรือ AI/ML
+- ต้องการ API ที่อ่านง่าย พัฒนาเร็ว และมี auto documentation พร้อมใช้
+- ระบบเน้น CRUD หรือ admin/CMS เป็นหลัก
+
+**เลือก Golang Platform ถ้า:**
+
+- performance และ concurrency สำคัญที่สุดเป็นอันดับแรก
+- ทำ service ที่ traffic สูงมาก เช่น payment หรือ API gateway
+- ต้องการ deploy ง่ายด้วย single binary และใช้ resource น้อย
+
+**เลือก Java Platform ถ้า:**
+
+- ทำระบบ enterprise ที่ต้องการความมั่นคงและความน่าเชื่อถือสูงสุด เช่น banking
+- ทีมคุ้นเคยกับ Java/Spring ecosystem อยู่แล้ว
+- ต้อง maintain ระบบไปอีกหลายปี และ business logic ซับซ้อนมาก
+
+**เลือก .NET Platform ถ้า:**
+
+- ทีมถนัด C#/.NET หรืออยู่ใน ecosystem ของ Microsoft อยู่แล้ว
+- ต้องการทั้ง performance ที่ดีและ structure ที่ชัดเจนไปพร้อมกัน
+- อยากแบ่ง layer ด้วย Class Library / Clean Architecture เพื่อ reuse code ระหว่าง service
+
+**สรุป:**
+
+- [X] **Node.js** หรือ **Go** เป็นตัวเลือกหลักสำหรับ API/microservices ทั่วไปที่ต้องการความเร็วในการพัฒนาและ performance ที่ดี
+- [X] **Java (Spring Boot)** หรือ **.NET** เหมาะกับระบบ enterprise ที่ต้องการความมั่นคงสูงและ maintain ระยะยาว
+- [ ] **Python** เป็นทางเลือกที่ดีเมื่อระบบต้องเชื่อมกับงาน data/AI/ML หรือเน้น CRUD จำนวนมาก
+
+---
+
 ## Frontend
 
 Frontend คือส่วนที่ผู้ใช้เห็นและโต้ตอบโดยตรง เช่น web application, admin portal, merchant portal, dashboard, marketplace UI หรือ internal operation tool
@@ -642,6 +979,14 @@ Frontend คือส่วนที่ผู้ใช้เห็นและ�
 ### 1. React
 
 React เป็น UI library สำหรับสร้าง web application แบบ component-based จุดเด่นคือ ecosystem ใหญ่มาก ใช้กันแพร่หลาย และเหมาะกับงานหลายประเภท ตั้งแต่ dashboard, admin portal, E-Commerce ไปจนถึง social platform
+
+**💰 ช่วงเงินเดือน React Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿27,000 - ฿42,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿45,000 - ฿75,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿85,000 - ฿140,000+ |
 
 **น่าใช้เพราะ:**
 
@@ -677,6 +1022,16 @@ React เป็น UI library สำหรับสร้าง web application 
 
 Vue 3 เป็น frontend framework ที่เรียนรู้ง่าย อ่านง่าย และเหมาะกับทีมที่ต้องการความเร็วในการพัฒนาสูง โดยไม่ต้องแบกรับความซับซ้อนของ ecosystem ขนาดใหญ่เท่า React
 
+**💰 ช่วงเงินเดือน Vue Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿25,000 - ฿40,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿42,000 - ฿70,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿80,000 - ฿130,000+ |
+
+> ตำแหน่งที่ระบุ "Vue" ตรง ๆ ในตลาดไทยมีน้อยกว่า React จึงมักถูกรวมไว้ในตำแหน่ง "Frontend Developer" ทั่วไป ฐานเงินเดือนจึงใกล้เคียงกับ React แต่ demand อาจน้อยกว่าเล็กน้อย
+
 **น่าใช้เพราะ:**
 
 - learning curve ต่ำกว่า React/Angular สำหรับหลายทีม
@@ -711,7 +1066,15 @@ Vue 3 เป็น frontend framework ที่เรียนรู้ง่า
 
 Next.js เป็น framework ที่ต่อยอดจาก React โดยเพิ่ม routing, SSR, SSG, API routes/server actions, image optimization และ performance optimization เข้ามา เหมาะกับ production web app ที่ต้องการ SEO หรือ initial load ที่ดี
 
-> หมายเหตุ: Next.js ไม่ใช่ Angular แต่เป็น framework ที่ต่อยอดบน React ecosystem
+**💰 ช่วงเงินเดือน Next.js Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿28,000 - ฿45,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿48,000 - ฿80,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿90,000 - ฿150,000+ |
+
+> เนื่องจาก Next.js มักใช้คู่กับงานฝั่ง server (API routes, server actions) ทักษะนี้จึงมักถูกนับเป็น "full-stack" บางส่วน ทำให้ฐานเงินเดือนสูงกว่า React ล้วน ๆ เล็กน้อย
 
 **น่าใช้เพราะ:**
 
@@ -747,6 +1110,16 @@ Next.js เป็น framework ที่ต่อยอดจาก React โด
 
 Angular เป็น frontend framework แบบครบเครื่องและ opinionated แยกต่างหากจาก React/Next.js จุดเด่นคือมี architecture, dependency injection, routing, form, HTTP client และ tooling ครบในตัว เหมาะกับ enterprise application และทีมใหญ่ที่ต้องการ convention ชัดเจน
 
+**💰 ช่วงเงินเดือน Angular Developer (กรุงเทพฯ, 2026):**
+
+| ระดับ             | ประสบการณ์ | เงินเดือน/เดือน        |
+| ---------------- | --------- | ------------------- |
+| Junior (Jr.)     | 0-2 ปี     | ฿27,000 - ฿42,000   |
+| Mid-level (Mid.) | 2-5 ปี     | ฿45,000 - ฿75,000   |
+| Senior (Sr.)     | 5+ ปี      | ฿85,000 - ฿140,000+ |
+
+> ตำแหน่งงาน Angular ในไทยมักอยู่ในองค์กรขนาดใหญ่หรือ enterprise project ฐานเงินเดือนจึงใกล้เคียงกับ React/TypeScript ระดับเดียวกัน
+
 **น่าใช้เพราะ:**
 
 - เป็น full frontend framework ที่มีเครื่องมือหลักครบ
@@ -780,16 +1153,16 @@ Angular เป็น frontend framework แบบครบเครื่อง�
 
 ### Frontend Comparison
 
-| ปัจจัย            | React                  | Vue 3                       | Next.js                    | Angular                     |
-| ----------------- | ---------------------- | --------------------------- | -------------------------- | --------------------------- |
-| Type              | UI Library             | Frontend Framework          | React Framework            | Full Frontend Framework     |
-| Learning Curve    | ปานกลาง                | ง่าย                        | ปานกลางถึงสูง              | สูง                         |
-| Built-in Features | น้อย ต้องเลือกเอง      | ปานกลาง                     | สูงกว่า React              | สูงมาก                      |
-| SEO               | ต้องใช้ framework เพิ่ม | ต้องใช้ Nuxt/SSR เพิ่ม      | ดีมาก                      | ทำได้ แต่ไม่ใช่จุดเด่นหลัก  |
-| Structure         | Flexible               | ค่อนข้างชัดเจน              | ชัดเจนกว่า React           | ชัดเจนมาก                   |
-| Large Team        | ดี ถ้ามี standard      | ปานกลางถึงดี                | ดี                         | ดีมาก                       |
-| Ecosystem         | ใหญ่มาก                | ปานกลาง                     | ใหญ่มาก (จาก React ecosystem) | ใหญ่ในสาย enterprise     |
-| Best Use Case     | SPA / dashboard        | Internal tool / medium apps | SEO / public web           | Enterprise internal system  |
+| ปัจจัย              | React               | Vue 3                       | Next.js                      | Angular                    |
+| ----------------- | ------------------- | --------------------------- | ---------------------------- | -------------------------- |
+| Type              | UI Library          | Frontend Framework          | React Framework              | Full Frontend Framework    |
+| Learning Curve    | ปานกลาง             | ง่าย                         | ปานกลางถึงสูง                  | สูง                         |
+| Built-in Features | น้อย ต้องเลือกเอง      | ปานกลาง                     | สูงกว่า React                  | สูงมาก                      |
+| SEO               | ต้องใช้ framework เพิ่ม | ต้องใช้ Nuxt/SSR เพิ่ม          | ดีมาก                         | ทำได้ แต่ไม่ใช่จุดเด่นหลัก         |
+| Structure         | Flexible            | ค่อนข้างชัดเจน                 | ชัดเจนกว่า React               | ชัดเจนมาก                   |
+| Large Team        | ดี ถ้ามี standard      | ปานกลางถึงดี                  | ดี                            | ดีมาก                       |
+| Ecosystem         | ใหญ่มาก              | ปานกลาง                     | ใหญ่มาก (จาก React ecosystem) | ใหญ่ในสาย enterprise        |
+| Best Use Case     | SPA / dashboard     | Internal tool / medium apps | SEO / public web             | Enterprise internal system |
 
 **เลือก React ถ้า:**
 
@@ -830,7 +1203,28 @@ Angular เป็น frontend framework แบบครบเครื่อง�
 
 ## Database
 
-### 1. PostgreSQL (Relational)
+เลือก database ให้เหมาะกับลักษณะข้อมูลและ requirement ของระบบ คำถามแรกที่ควรตอบคือ "ข้อมูลของเรามี schema ที่ชัดเจนและต้องการ ACID/transaction แค่ไหน" เพราะคำตอบนี้จะช่วยตัดตัวเลือกให้แคบลงเหลือสองกลุ่มหลักก่อน คือ SQL (Relational) กับ NoSQL จากนั้นค่อยพิจารณาตัวเลือกในกลุ่มนั้นต่อ
+
+```mermaid
+flowchart TD
+    A["เริ่มเลือก Database"] --> B{"ข้อมูลมี schema ชัดเจน
+และต้องการ ACID / transaction หรือไม่?"}
+    B -->|"ใช่ เช่น order, payment, user account"| C["SQL / Relational Database
+(PostgreSQL / MySQL / Microsoft SQL Server)"]
+    B -->|"ไม่ใช่ schema ยืดหยุ่น
+หรือต้อง scale รับ traffic มหาศาล"| D["NoSQL Database
+(MongoDB / Cassandra / DynamoDB)"]
+```
+
+ทั้งสองกลุ่มด้านล่างนี้จะอธิบายตามโครงสร้างเดียวกัน คือ แนะนำแต่ละตัวเลือก → จุดเด่น/ข้อดี/ข้อเสีย/เหมาะกับอะไร/ช่วงเงินเดือนตลาด → ตารางเปรียบเทียบภายในกลุ่ม → เกณฑ์การเลือก → สรุป เพื่อให้เทียบกันได้ง่ายทั้งภายในกลุ่มเดียวกันและข้ามกลุ่ม
+
+---
+
+### SQL / Relational Database
+
+ฐานข้อมูลกลุ่มนี้เก็บข้อมูลเป็นตารางที่มี schema ชัดเจนและมีความสัมพันธ์ (relation) ระหว่างกัน รองรับ ACID compliance ทำให้ transaction ปลอดภัย เหมาะกับข้อมูลสำคัญของระบบ เช่น order, payment, user account
+
+#### 1. PostgreSQL (Relational)
 
 ต้องการ transaction ที่เชื่อถือได้สูงสุด? ตัวนี้คือคำตอบ
 
@@ -864,40 +1258,7 @@ Angular เป็น frontend framework แบบครบเครื่อง�
 
 ---
 
-### 2. MongoDB (NoSQL Document)
-
-ชอบ schema ที่ยืดหยุ่น ยังไม่แน่ใจว่าจะวาง structure แบบไหน?
-
-**น่าใช้เพราะ:**
-
-- มี schema ที่ยืดหยุ่น (เหมาะกับ SaaS multi-tenancy)
-- เก็บข้อมูลแบบ JSON document โดยตรง
-- ทำ horizontal scaling ได้ดีเยี่ยม (sharding)
-- query แบบ non-relational ได้เร็ว
-- เหมาะกับงานด้าน catalog
-
-**ข้อดี:**
-
-- schema ยืดหยุ่น ปรับเปลี่ยนได้ง่าย
-- รองรับ JSON document แบบ native
-- ทำ horizontal scaling ได้ง่าย
-- query แบบ non-relational ทำได้เร็ว
-- เก็บ catalog และ content ได้ดี
-- มี community ใหญ่
-
-**ข้อเสีย:**
-
-- ACID compliance ยังมีข้อจำกัด (ดีขึ้นมากตั้งแต่ 4.0+)
-- ความสัมพันธ์ของข้อมูลที่ซับซ้อนจัดการยาก
-- ใช้พื้นที่จัดเก็บค่อนข้างมาก
-- multi-document transaction ทำได้แต่ซับซ้อน
-- มีความเสี่ยงข้อมูลซ้ำซ้อนจากการทำ denormalization
-
-**เหมาะกับ:** product catalog (E-Commerce), user profile
-
----
-
-### 3. MySQL (Relational)
+#### 2. MySQL (Relational)
 
 เก่าแต่เก๋า! ใช้กันเยอะ มี support ดี
 
@@ -930,7 +1291,112 @@ Angular เป็น frontend framework แบบครบเครื่อง�
 
 ---
 
-### 4. Cassandra / DynamoDB (Time-Series / High Throughput)
+#### 3. Microsoft SQL Server (Relational)
+
+องค์กรที่ใช้ ecosystem ของ Microsoft อยู่แล้ว และต้องการ relational database ระดับ enterprise พร้อม support เต็มรูปแบบ?
+
+**น่าใช้เพราะ:**
+
+- เป็น relational database ระดับ enterprise ที่เสถียรและมี support จาก Microsoft โดยตรง
+- integrate กับ .NET / Azure ได้แนบสนิท
+- มีเครื่องมือจัดการอย่าง SQL Server Management Studio (SSMS) ที่ใช้งานง่าย
+- รองรับทั้งแบบ on-premise และ cloud (Azure SQL Database)
+- มี feature ระดับ enterprise เช่น Always On Availability Groups, Transparent Data Encryption
+
+**ข้อดี:**
+
+- ACID compliance สูง เหมาะกับงาน transaction
+- performance และ tooling สำหรับ enterprise ครบครัน
+- security และ compliance feature แข็งแกร่ง ตอบโจทย์งานด้าน finance/banking
+- support และเอกสารจาก Microsoft ครบถ้วน
+- ทำงานร่วมกับ .NET stack ได้ลื่นไหล
+
+**ข้อเสีย:**
+
+- ค่า license สูง โดยเฉพาะ Enterprise edition ต่างจาก PostgreSQL/MySQL ที่เป็น open-source
+- มีความเป็น vendor lock-in กับ ecosystem ของ Microsoft
+- ใช้ resource (RAM/CPU) ค่อนข้างสูงเมื่อเทียบกับตัวเลือกอื่น
+- แม้จะรองรับ Linux แล้ว แต่ tooling และ community ส่วนใหญ่ยังผูกกับ Windows Server
+
+**เหมาะกับ:** องค์กรที่ใช้ .NET / Microsoft ecosystem อยู่แล้ว, ระบบ enterprise ที่ต้องการ support และ SLA ระดับสูง, งานที่เน้น security/compliance เช่น ระบบการเงินขององค์กรขนาดใหญ่
+
+---
+
+#### PostgreSQL vs MySQL vs Microsoft SQL Server — เปรียบเทียบ
+
+| ปัจจัย                | PostgreSQL                   | MySQL                     | Microsoft SQL Server              |
+| ------------------- | ---------------------------- | ------------------------- | --------------------------------- |
+| License             | Open source ฟรี               | Open source ฟรี            | Commercial (มีค่า license)          |
+| ACID Compliance     | สูงมาก                        | สูง (ผ่าน InnoDB)           | สูงมาก                             |
+| Query Power         | สูงมาก (SQL เต็มรูปแบบ + JSONB) | สูง (SQL)                  | สูงมาก (T-SQL เต็มรูปแบบ)            |
+| Ecosystem / Tooling | ใหญ่ ใช้ได้ทุก cloud             | ใหญ่มาก hosting รองรับทั่วไป  | ครบเครื่องในฝั่ง Microsoft/Azure      |
+| Operational Effort  | ปานกลาง                      | ต่ำ ตั้งค่าง่าย                 | สูง ต้องดูแล license และ infra       |
+| Best Use Case       | Transaction, ข้อมูลหลักของระบบ  | E-Commerce ทั่วไป, ข้อมูลทั่วไป | องค์กรที่ใช้ .NET/Microsoft ecosystem |
+
+**เลือก PostgreSQL ถ้า:**
+
+- ต้องการ ACID compliance สูงสุด เช่น งาน wallet หรือ transaction ทางการเงิน
+- ข้อมูลมีความสัมพันธ์ซับซ้อนและต้องทำ complex query/join
+- ต้องการ database หลักที่เชื่อถือได้และเป็น open source
+
+**เลือก MySQL ถ้า:**
+
+- ต้องการ relational database ที่ setup และ maintain ง่าย
+- ระบบไม่ซับซ้อนมากและต้องการ hosting ที่รองรับได้ทั่วไป
+- ทีมคุ้นเคยกับ MySQL อยู่แล้ว
+
+**เลือก Microsoft SQL Server ถ้า:**
+
+- ทีมหรือองค์กรใช้ .NET / Microsoft ecosystem (Azure, Windows Server) อยู่แล้ว
+- ต้องการ relational database ระดับ enterprise ที่มี support และ SLA จาก Microsoft โดยตรง
+- งบประมาณรองรับค่า license และให้ความสำคัญกับ security/compliance ระดับองค์กร
+
+**สรุป:**
+
+- [X] **PostgreSQL** เป็นตัวเลือกหลักของกลุ่ม SQL สำหรับข้อมูลที่ต้องการ ACID และความถูกต้องสูง เช่น wallet, order
+- [ ] **MySQL** เป็นทางเลือกแทน PostgreSQL เมื่อต้องการความง่ายในการ setup/maintain
+- [ ] **Microsoft SQL Server** เป็นทางเลือกเมื่อองค์กรอยู่ใน .NET/Microsoft ecosystem และต้องการ enterprise support
+
+---
+
+### NoSQL Database
+
+ฐานข้อมูลกลุ่มนี้เก็บข้อมูลแบบยืดหยุ่น ไม่บังคับ schema ตายตัว และออกแบบมาให้รองรับ horizontal scaling ได้ดี เหมาะกับข้อมูลที่เปลี่ยนแปลงบ่อยหรือต้องรองรับ traffic/write throughput ระดับสูง เช่น catalog, content, event log
+
+#### 1. MongoDB (NoSQL Document)
+
+ชอบ schema ที่ยืดหยุ่น ยังไม่แน่ใจว่าจะวาง structure แบบไหน?
+
+**น่าใช้เพราะ:**
+
+- มี schema ที่ยืดหยุ่น (เหมาะกับ SaaS multi-tenancy)
+- เก็บข้อมูลแบบ JSON document โดยตรง
+- ทำ horizontal scaling ได้ดีเยี่ยม (sharding)
+- query แบบ non-relational ได้เร็ว
+- เหมาะกับงานด้าน catalog
+
+**ข้อดี:**
+
+- schema ยืดหยุ่น ปรับเปลี่ยนได้ง่าย
+- รองรับ JSON document แบบ native
+- ทำ horizontal scaling ได้ง่าย
+- query แบบ non-relational ทำได้เร็ว
+- เก็บ catalog และ content ได้ดี
+- มี community ใหญ่
+
+**ข้อเสีย:**
+
+- ACID compliance ยังมีข้อจำกัด (ดีขึ้นมากตั้งแต่ 4.0+)
+- ความสัมพันธ์ของข้อมูลที่ซับซ้อนจัดการยาก
+- ใช้พื้นที่จัดเก็บค่อนข้างมาก
+- multi-document transaction ทำได้แต่ซับซ้อน
+- มีความเสี่ยงข้อมูลซ้ำซ้อนจากการทำ denormalization
+
+**เหมาะกับ:** product catalog (E-Commerce), user profile
+
+---
+
+#### 2. Cassandra / DynamoDB (Time-Series / High Throughput)
 
 ต้องรับมือกับ traffic ปริมาณมหาศาลและเพิ่มขึ้นเรื่อย ๆ?
 
@@ -963,15 +1429,56 @@ Angular เป็น frontend framework แบบครบเครื่อง�
 
 ---
 
-### 💡 Strategy แนะนำ
+#### MongoDB vs Cassandra/DynamoDB — เปรียบเทียบ
 
-**Primary:** PostgreSQL (หรือ MySQL ถ้าอยากให้ง่าย)
+| ปัจจัย            | MongoDB                        | Cassandra / DynamoDB                  |
+| --------------- | ------------------------------ | ------------------------------------- |
+| Type            | NoSQL Document                 | NoSQL Wide-column / Key-value         |
+| Schema          | ยืดหยุ่น เก็บแบบ JSON document     | ยืดหยุ่น เน้น write throughput            |
+| ACID Compliance | มีข้อจำกัด (ดีขึ้นตั้งแต่ 4.0+)          | Eventually consistent (ไม่ใช่ ACID)     |
+| Scaling         | Horizontal (sharding) ได้ดี      | Horizontal ระดับมหาศาล                 |
+| Query Power     | ปานกลาง (query แบบ document)   | จำกัด เน้น key-based access              |
+| Best Use Case   | Catalog, user profile, content | Event log, analytics, real-time event |
 
-- transactional data, user, order, wallet
+**เลือก MongoDB ถ้า:**
 
-**Optional Secondary:** MongoDB หรือ DynamoDB
+- schema ของข้อมูลยังไม่นิ่งหรือเปลี่ยนแปลงบ่อย
+- ต้องการเก็บข้อมูลแบบ catalog หรือ content ที่มีโครงสร้างยืดหยุ่น
+- ต้องการ horizontal scaling ที่ทำได้ง่ายในระดับกลาง ๆ
 
-- log, event, analytics, user-generated content
+**เลือก Cassandra / DynamoDB ถ้า:**
+
+- ต้องรองรับ traffic หรือ write throughput ระดับมหาศาล
+- เก็บข้อมูลแบบ time-series เช่น event log หรือ analytics
+- ยอมรับโมเดลแบบ eventually consistent ได้ และไม่ต้องการ ACID เต็มรูปแบบ
+
+**สรุป:**
+
+- [X] **MongoDB** เป็นตัวเลือกหลักของกลุ่ม NoSQL สำหรับ catalog, content หรือข้อมูลที่ schema ยืดหยุ่น
+- [ ] **Cassandra / DynamoDB** เป็นทางเลือกสำหรับงาน event log หรือ analytics ที่ scale สูงมาก
+
+---
+
+### Database Comparison
+
+หลังจากดูแต่ละตัวเลือกในแต่ละกลุ่มไปแล้ว ส่วนนี้สรุปภาพรวมให้เทียบกันได้ข้ามกลุ่ม ว่าแต่ละ database เด่นเรื่องอะไร และเหมาะกับข้อมูลแบบไหน
+
+| ปัจจัย            | PostgreSQL                  | MongoDB                        | MySQL                     | Cassandra / DynamoDB                  | Microsoft SQL Server                          |
+| --------------- | --------------------------- | ------------------------------ | ------------------------- | ------------------------------------- | --------------------------------------------- |
+| Type            | Relational                  | NoSQL Document                 | Relational                | NoSQL Wide-column / Key-value         | Relational                                    |
+| ACID Compliance | สูงมาก                       | มีข้อจำกัด (ดีขึ้นตั้งแต่ 4.0+)          | สูง (ผ่าน InnoDB)           | Eventually consistent (ไม่ใช่ ACID)     | สูงมาก                                         |
+| Schema          | ตายตัว ชัดเจน                 | ยืดหยุ่น                          | ตายตัว ชัดเจน               | ยืดหยุ่น เน้น write throughput            | ตายตัว ชัดเจน                                   |
+| Scaling         | เน้น Vertical                | Horizontal (sharding) ได้ดี      | เน้น Vertical              | Horizontal ระดับมหาศาล                 | เน้น Vertical (รองรับ Always On สำหรับ HA)        |
+| Query Power     | สูงมาก (SQL เต็มรูปแบบ)        | ปานกลาง (query แบบ document)   | สูง (SQL)                  | จำกัด เน้น key-based access              | สูงมาก (T-SQL เต็มรูปแบบ)                        |
+| Best Use Case   | Transaction, ข้อมูลหลักของระบบ | Catalog, user profile, content | E-Commerce ทั่วไป, ข้อมูลทั่วไป | Event log, analytics, real-time event | องค์กรที่ใช้ .NET/Microsoft ecosystem, enterprise |
+
+**สรุป:**
+
+- [X] **PostgreSQL** เป็นตัวเลือกหลักสำหรับข้อมูลที่ต้องการ ACID และความถูกต้องสูง เช่น wallet, order
+- [X] **MongoDB** เป็นตัวเลือกเสริมสำหรับ catalog, content หรือข้อมูลที่ schema ยืดหยุ่น
+- [ ] **MySQL** เป็นทางเลือกแทน PostgreSQL เมื่อต้องการความง่ายในการ setup/maintain
+- [ ] **Cassandra / DynamoDB** เป็นทางเลือกสำหรับงาน event log หรือ analytics ที่ scale สูงมาก
+- [ ] **Microsoft SQL Server** เป็นทางเลือกเมื่อองค์กรอยู่ใน .NET/Microsoft ecosystem และต้องการ enterprise support
 
 ---
 
@@ -1058,11 +1565,81 @@ industry standard ของ file storage
 
 ---
 
-### แนะนำ: AWS S3 + CloudFront
+### 4. SeaweedFS (Self-Hosted Distributed Storage)
 
-- S3 เชื่อถือได้และ scale ได้ดี
-- CloudFront เป็น CDN ที่เร็วทั่วโลก
-- MinIO เป็นทางเลือกสำหรับงานแบบ hybrid/on-premise
+ต้องเก็บไฟล์ขนาดเล็กจำนวนมหาศาล (เช่น รูปโปรไฟล์ thumbnail) และอยากได้ตัวเลือก self-hosted ที่ scale แบบ distributed ได้ดี?
+
+**น่าใช้เพราะ:**
+
+- ออกแบบมาเพื่อจัดการไฟล์ขนาดเล็กจำนวนมากโดยเฉพาะ ซึ่งเป็นจุดอ่อนของ object storage ทั่วไป
+- มี S3-compatible API ใช้แทน AWS S3 ได้โดยแก้โค้ดน้อย
+- เป็น open source ใช้ฟรี และมักใช้ resource น้อยกว่าตัวเลือก self-hosted อื่น
+- รองรับสถาปัตยกรรมแบบ distributed ทำให้ scale แบบ horizontal ได้ดี
+
+**ข้อดี:**
+
+- จัดการไฟล์เล็กจำนวนมากได้อย่างมีประสิทธิภาพ (เก็บ metadata กระชับ ลด overhead)
+- มี S3 gateway ทำให้ migrate จาก/ไปหา S3 ได้ง่าย
+- เป็น open source ฟรี ไม่มี vendor lock-in
+- รองรับการทำ tiered storage เช่น ย้ายไฟล์เก่าไปเก็บที่ cloud อัตโนมัติ
+- scale แบบ horizontal ได้ดีด้วยสถาปัตยกรรมแบบ distributed
+
+**ข้อเสีย:**
+
+- community และ ecosystem เล็กกว่า MinIO มาก
+- documentation และ tooling ยังไม่ครบเท่าตัวเลือกที่เป็น mainstream
+- ต้องดูแล infrastructure แบบ distributed เอง ซึ่งมี operational complexity สูง
+- การันตีเรื่อง durability และ high availability ขึ้นกับการตั้งค่าเอง
+- หาผู้ที่มีประสบการณ์ตรงในตลาดได้ยากกว่า
+
+**เหมาะกับ:** ระบบที่มีไฟล์ขนาดเล็กจำนวนมาก เช่น รูปโปรไฟล์ผู้ใช้, thumbnail, เนื้อหาแบบ user-generated ปริมาณสูง (Social Network, E-Commerce)
+
+---
+
+### Storage Comparison
+
+หลังจากดูแต่ละตัวเลือกไปแล้ว ส่วนนี้สรุปภาพรวมให้เทียบกันได้ในมุมกว้างขึ้น ว่าแต่ละ storage เด่นเรื่องอะไร และเหมาะกับสถานการณ์แบบไหน
+
+| ปัจจัย               | AWS S3                  | Google Cloud Storage / Azure Blob | MinIO (Self-Hosted)                 | SeaweedFS (Self-Hosted)                       |
+| ------------------ | ----------------------- | --------------------------------- | ----------------------------------- | --------------------------------------------- |
+| Type               | Managed object storage  | Managed object storage            | Self-hosted, S3-compatible          | Self-hosted, distributed, S3-compatible       |
+| Vendor Lock-in     | มี (ผูกกับ AWS)            | มี (ผูกกับ GCP/Azure)                | ไม่มี                                 | ไม่มี                                           |
+| Scalability        | ไม่จำกัด                   | ไม่จำกัด                             | ขึ้นกับ infrastructure ที่ดูแลเอง         | ดีมากสำหรับไฟล์ขนาดเล็กจำนวนมาก (distributed)       |
+| Durability         | สูงมาก (99.999999999%)   | สูงมาก ใกล้เคียง S3                  | ขึ้นกับการตั้งค่าและ infrastructure เอง   | ขึ้นกับการตั้งค่าและ infrastructure เอง             |
+| Operational Effort | ต่ำ (ผู้ให้บริการดูแลให้)       | ต่ำ (ผู้ให้บริการดูแลให้)                 | สูง (ต้องดูแลเอง)                      | สูง (ต้องดูแล distributed system เอง)            |
+| Cost Model         | จ่ายตามการใช้งาน + egress | จ่ายตามการใช้งาน + egress           | ต้นทุน infrastructure + bandwidth เอง | ต้นทุน infrastructure + bandwidth เอง           |
+| Best Use Case      | ระบบทั่วไปที่ใช้ AWS         | องค์กรที่อยู่บน GCP/Azure              | on-premise, private cloud, คุมต้นทุน   | ไฟล์ขนาดเล็กจำนวนมาก เช่น thumbnail, user content |
+
+**เลือก AWS S3 (หรือ MinIO/DigitalOcean Spaces) ถ้า:**
+
+- ต้องการ storage ที่เชื่อถือได้และ scale ได้ทันที โดยไม่ต้องดูแล infrastructure เอง
+- ใช้งานร่วมกับ CDN อย่าง CloudFront เพื่อกระจายไฟล์ทั่วโลก
+- ระบบ deploy บน AWS อยู่แล้ว
+
+**เลือก Google Cloud Storage / Azure Blob ถ้า:**
+
+- องค์กรใช้งานอยู่บน ecosystem ของ GCP หรือ Azure อยู่แล้ว
+- ต้องการมาตรฐาน compliance ที่แข็งแรง เช่น HIPAA, GDPR
+- ยอมรับความเป็น vendor lock-in กับผู้ให้บริการรายนั้นได้
+
+**เลือก MinIO (Self-Hosted) ถ้า:**
+
+- ไม่ต้องการผูกติดกับ cloud provider รายใดรายหนึ่ง
+- ต้องการควบคุมต้นทุนและข้อมูลด้วยตัวเอง เช่น งาน on-premise หรือ private cloud
+- ทีมพร้อมดูแล infrastructure และความพร้อมใช้งานเอง
+
+**เลือก SeaweedFS ถ้า:**
+
+- ระบบมีไฟล์ขนาดเล็กจำนวนมหาศาล เช่น รูปโปรไฟล์ผู้ใช้หรือ thumbnail ใน Social Network/E-Commerce
+- ต้องการ self-hosted storage ที่ออกแบบมาเพื่อ scale แบบ distributed โดยเฉพาะ
+- ทีมมีความพร้อมด้าน infra/DevOps และยอมรับ ecosystem ที่เล็กกว่า MinIO ได้
+
+**สรุป:**
+
+- [X] **AWS S3 + CloudFront** เป็นตัวเลือกหลักสำหรับงานทั่วไปที่ต้องการความเชื่อถือได้และ scale ง่าย
+- [ ] **Google Cloud Storage / Azure Blob** เป็นทางเลือกเมื่อ organization อยู่ใน ecosystem นั้นอยู่แล้ว
+- [ ] **MinIO** เป็นทางเลือกสำหรับ hybrid/on-premise หรือโปรเจกต์ที่ต้องคุมต้นทุนและไม่ต้องการ vendor lock-in
+- [ ] **SeaweedFS** เป็นทางเลือกเฉพาะทางเมื่อระบบต้องจัดการไฟล์ขนาดเล็กจำนวนมหาศาลแบบ distributed
 
 ---
 
@@ -1198,92 +1775,46 @@ reverse proxy cache เฉพาะทางสำหรับ HTTP
 
 ---
 
-### 💡 Strategy แนะนำ
+### Cache Comparison
 
-**Primary:** Redis
+หลังจากดูแต่ละตัวเลือกไปแล้ว ส่วนนี้สรุปภาพรวมให้เทียบกันได้ในมุมกว้างขึ้น ว่าแต่ละตัวเด่นเรื่องอะไร และเหมาะกับงานแบบไหน
 
-- session storage
-- rate limiting
-- real-time feature
-- leaderboard
-- shopping cart
+| ปัจจัย               | Redis                                                | Memcached                   | ElastiCache                        | Varnish                              |
+| ------------------ | ---------------------------------------------------- | --------------------------- | ---------------------------------- | ------------------------------------ |
+| Type               | In-memory data store                                 | In-memory key-value store   | Managed Redis/Memcached (AWS)      | HTTP reverse proxy cache             |
+| Data Types         | หลากหลาย (string, list, set, hash ฯลฯ)               | Key-value แบบง่าย            | ตาม engine ที่เลือก (Redis/Memcached) | HTTP response เท่านั้น                  |
+| Persistence        | มี (เลือกเปิดได้)                                        | ไม่มี                         | ขึ้นกับ engine ที่เลือก                  | ไม่มี (cache เฉพาะ HTTP)               |
+| Pub/Sub            | มี                                                    | ไม่มี                         | ขึ้นกับ engine ที่เลือก                  | ไม่มี                                  |
+| Operational Effort | ดูแลเอง (หรือใช้ managed service)                       | ดูแลเอง                      | ต่ำ (AWS ดูแลให้)                      | ต้องดูแล infrastructure แยก            |
+| Best Use Case      | session, cart, leaderboard, rate limiting, real-time | cache แบบง่าย, throughput สูง | ระบบที่ deploy บน AWS เป็นหลัก         | cache หน้าเว็บ, content ที่ traffic เยอะ |
 
-**Optional:** Varnish หรือ CloudFront
+**เลือก Redis ถ้า:**
 
-- เนื้อหาแบบ static และ semi-static
-- รูปภาพและหน้าสินค้า
+- ต้องการ cache ที่รองรับ data type หลากหลายและมี Pub/Sub สำหรับ real-time feature
+- ใช้งานกับ session storage, shopping cart, rate limiting หรือ leaderboard
+- ต้องการตัวเลือกที่เป็น industry standard และใช้ได้กับทุก platform
 
----
+**เลือก Memcached ถ้า:**
 
-## Recommended Stack by Platform
+- ต้องการ cache แบบ key-value ที่เรียบง่ายและ overhead ต่ำที่สุด
+- ไม่จำเป็นต้องใช้ persistence, Pub/Sub หรือ feature ขั้นสูงอื่น ๆ
+- เน้นความเร็วและความง่ายในการดูแลรักษา
 
-### E-Commerce Platform
+**เลือก ElastiCache ถ้า:**
 
-```
-Backend:        Node.js + NestJS หรือ Go + Gin
-Frontend:       React + Next.js
-Database:       PostgreSQL (หลัก) + MongoDB (catalog)
-Storage:        AWS S3 + CloudFront
-Cache:          Redis + CloudFront
-```
+- ระบบ deploy บน AWS อยู่แล้วและไม่อยากดูแล operation ของ cache เอง
+- ต้องการ automatic failover, replication และ backup แบบพร้อมใช้
+- ยอมรับค่าใช้จ่ายที่สูงขึ้นเพื่อแลกกับความสะดวกในการดูแลรักษา
 
-### E-Wallet Platform (FinTech)
+**เลือก Varnish ถ้า:**
 
-```
-Backend:        Go + Gin หรือ Java + Spring Boot (เน้นความน่าเชื่อถือ)
-Frontend:       React + Next.js
-Database:       PostgreSQL (ต้องการ ACID)
-Storage:        AWS S3
-Cache:          Redis
-```
+- ต้องการ cache เฉพาะ HTTP response เพื่อลดโหลดของ backend
+- เว็บไซต์มี content จำนวนมากและ traffic สูง เช่น E-Commerce
+- ทีมพร้อมดูแล infrastructure ของ reverse proxy แยกต่างหาก
 
-### Social Network Platform
+**สรุป:**
 
-```
-Backend:        Node.js + NestJS หรือ Go + Gin (เน้น real-time)
-Frontend:       React หรือ Next.js
-Database:       PostgreSQL + MongoDB (user content)
-Storage:        AWS S3 + CloudFront
-Cache:          Redis (leaderboard, feed)
-```
-
----
-
-## Decision Matrix
-
-| ปัจจัย            | Node.js | Python | Go       | Java   |
-| ----------------- | ------- | ------ | -------- | ------ |
-| Performance       | ดี      | พอใช้  | ดีมาก    | ดี     |
-| Scalability       | ดี      | ดี     | ดีมาก    | ดี     |
-| Development Speed | ดีมาก   | ดีมาก  | ดี       | พอใช้  |
-| Learning Curve    | ดี      | พอใช้  | ค่อนข้างชัน | ยาก |
-| Community         | ดีมาก   | ดีมาก  | ดี       | ดีมาก  |
-| Ecosystem         | ดีมาก   | ดีมาก  | ดี       | ดีมาก  |
-| DevOps/Deployment | ดี      | ดี     | ดีมาก    | ดี     |
-
----
-
-## Quick Summary
-
-**อยากได้ความเร็วและความเรียบง่าย:** React + Node.js + PostgreSQL + Redis
-
-**อยากได้ performance สูง:** Go + React + PostgreSQL + Redis
-
-**อยากได้ความพร้อมระดับ enterprise:** Java + React + PostgreSQL + Redis
-
-**FinTech (E-Wallet):** Go หรือ Java + React + PostgreSQL + Redis
-
-**ใช้ได้กับทุกแพลตฟอร์ม:** AWS S3 + CloudFront สำหรับ storage และ Redis สำหรับ cache ถือเป็นแนวทางมาตรฐานทั่วไป
-
----
-
-## Final Thoughts
-
-ไม่มี stack ไหนที่ "perfect" สำหรับทุกสถานการณ์
-
-- **อยากพัฒนาเร็ว?** → Node.js + React
-- **อยากได้ performance สูง?** → Go + React
-- **อยากได้ความมั่นคงระดับ enterprise?** → Java + React
-- **อยากได้ฟีเจอร์ด้าน ML/data?** → Python + React
-
-เลือกให้เหมาะกับทีม ปัญหาที่ต้องแก้ และข้อจำกัดที่มีอยู่จริง
+- [X] **Redis** เป็นตัวเลือกหลักสำหรับ cache ทั่วไป ใช้ได้กับทั้งสามแพลตฟอร์ม
+- [ ] **Memcached** เป็นทางเลือกเมื่อทำงาน key-value แบบง่ายและต้องการความเรียบง่ายสูงสุด
+- [ ] **ElastiCache** เป็นทางเลือกเมื่อไม่อยากดูแล operation เองและระบบอยู่บน AWS
+- [ ] **Varnish** เป็นตัวช่วยเสริมสำหรับ cache หน้าเว็บที่มี content และ traffic เยอะ
