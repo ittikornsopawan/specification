@@ -18,78 +18,20 @@ If you're interested in system architecture, preparing for system design intervi
 
 ---
 
-## Table of Contents
-
-This catalog is split into two groups. The first section contains **quick, practical system designs** that can be read and understood quickly. The second section lists **more serious / complex systems** that usually require deeper architectural thinking.
-
-### Quick System Design (Easy to Read)
-
-These systems are intentionally kept **simple and practical**. The goal is to quickly understand the architecture idea without going too deep.
-
-| #   | System                              | What It Covers                                          | Category            | Complexity | Link |
-| --- | ----------------------------------- | ------------------------------------------------------- | ------------------- | ---------- | ---- |
-| 1   | API Gateway                         | API routing, authentication, request validation         | Infrastructure      | Medium     |      |
-| 2   | User Login & Authentication Service | Login flow, JWT/session handling, password management   | Authentication      | Medium     |      |
-| 3   | Notification & Messaging Service    | Sending email, SMS, and push notifications              | Communication       | Medium     |      |
-| 4   | Audit Log & Activity Tracking       | Recording important user and system actions             | Security            | Medium     |      |
-| 5   | Background Job Processing System    | Async workers, queues, retries, and scheduled jobs      | Infrastructure      | Medium     |      |
-| 6   | File Upload & Storage Service       | Uploading files, storing metadata, and access control   | Storage             | Medium     |      |
-| 7   | Document Management Platform        | File versioning, sharing, and permission control        | Business Platform   | Medium     |      |
-| 8   | Team Chat / Messaging Service       | Real-time team messaging and message delivery           | Realtime            | Medium     |      |
-| 9   | Activity Timeline                   | Showing user actions and history inside a product       | Product Feature     | Easy       |      |
-| 10  | Search Across Application Data      | Searching users, documents, or other application data   | Data Infrastructure | Medium     |      |
-| 11  | User Profile & Account Service      | Managing user profiles and account settings             | Product Feature     | Easy       |      |
-| 12  | Email Delivery Service              | Reliable email sending with retry and provider fallback | Communication       | Medium     |      |
-| 13  | Webhook Event Delivery              | Sending events to external systems                      | Integration         | Medium     |      |
-| 14  | Report & Export Generation Service  | Generating downloadable reports (PDF/CSV/Excel)         | Business Platform   | Medium     |      |
-| 15  | Configuration Management Service    | Centralized configuration for applications              | Platform Tooling    | Medium     |      |
-| 16  | User Session Management             | Managing login sessions and token validation            | Authentication      | Medium     |      |
-| 17  | Comment & Discussion System         | Comments, replies, and basic moderation                 | Product Feature     | Easy       |      |
-| 18  | File Sharing Service                | Generating shareable file links and permissions         | Storage             | Medium     |      |
-| 19  | Product Analytics Event Collector   | Collecting usage events from applications               | Data Platform       | Medium     |      |
-| 20  | Metrics & Dashboard Backend         | Aggregating metrics for internal dashboards             | Data Platform       | Medium     |      |
-| 21  | Activity Feed / Updates Stream      | Aggregating updates into a user-facing feed             | Product Feature     | Medium     |      |
-| 22  | Notification Preference Management  | Managing user notification settings                     | Communication       | Easy       |      |
-| 23  | Tagging & Labeling Service          | Adding tags to content and filtering by tags            | Data Platform       | Easy       |      |
-| 24  | Bookmark / Favorites Feature        | Saving items for later access                           | Product Feature     | Easy       |      |
-| 25  | Shared Caching Layer                | Shared caching used by multiple services                | Infrastructure      | Easy       |      |
-
----
-
 ### Larger / More Serious Systems
 
 These designs represent **larger real-world platforms** where architecture decisions become more complex.
 
-| #   | System                                   | What It Covers                                                                   | Category                     | Complexity | Link                                                                                     |
-| --- | ---------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------- | ---------- | ---------------------------------------------------------------------------------------- |
-| 1   | E-Commerce Platform                      | Product catalog, shopping cart, checkout, and order management                   | Commerce Platform            | High       | In-Progress [Link](./Larger%20System/01_e-Commerce%20Platform/02-System-Architecture.md) |
-| 2   | Loyalty & Rewards Platform               | Points accumulation, reward redemption, campaign rules, and partner integrations | Customer Engagement Platform | High       | Pending                                                                                  |
-| 3   | Identity & Access Management (SSO / IAM) | Authentication, authorization, roles, and identity lifecycle                     | Security Platform            | High       | Pending                                                                                  |
-| 4   | Project & Task Management Platform       | Projects, tasks, workflow states, and team collaboration                         | Product System               | Medium     | Pending                                                                                  |
-| 5   | Real-Time Collaboration Platform         | Presence, collaborative editing, and real-time synchronization                   | Realtime Platform            | High       | Pending                                                                                  |
-| 6   | Multi-Tenant SaaS Platform               | Tenant isolation, tenant provisioning, and SaaS architecture                     | Platform Architecture        | High       | Pending                                                                                  |
-| 7   | Marketplace Platform                     | Buyers, sellers, listings, search, and transaction lifecycle                     | Commerce Platform            | High       | Pending                                                                                  |
-| 8   | E-Wallet Platform                        | Wallet balances, top-ups, transfers, and transaction records                     | FinTech                      | High       | In-Progress [Link](./Larger%20System/08_E-Wallet%20Platform/02-System-Architecture.md)   |
-| 9   | Online Payment Processing Platform       | Payment lifecycle, gateways, settlement, and reconciliation                      | FinTech                      | Very High  | Pending                                                                                  |
-| 10  | Core Banking System (Core Bank)          | Ledger, accounts, balances, transactions, and posting engine                     | Banking Platform             | Very High  | Pending                                                                                  |
-| 11  | Fraud Detection & Risk Scoring Platform  | Fraud signals, rules engine, and risk evaluation                                 | FinTech / AI                 | High       | Pending                                                                                  |
-| 12  | Hiring & Recruitment Platform            | Job postings, candidate pipeline, interview workflow, hiring                     | HR Tech Platform             | Medium     | Pending                                                                                  |
-| 13  | Learning Management System (LMS)         | Courses, enrollments, progress tracking, and assessments                         | EdTech Platform              | Medium     | Pending                                                                                  |
-| 14  | Subscription Billing & Usage Platform    | Subscription plans, metering, invoices, and billing cycles                       | SaaS Infrastructure          | High       | Pending                                                                                  |
-| 15  | Feature Flag / Experimentation Platform  | Feature rollout, A/B testing, and experiment tracking                            | Product Infrastructure       | Medium     | Pending                                                                                  |
-| 16  | Notification Delivery Platform           | Multi-channel notification routing and delivery pipelines                        | Communication                | Medium     | Pending                                                                                  |
-| 17  | Search Platform                          | Distributed indexing, query ranking, and search APIs                             | Data Infrastructure          | High       | Pending                                                                                  |
-| 18  | Recommendation System                    | Personalized content or product recommendations                                  | AI / Data Platform           | High       | Pending                                                                                  |
-| 19  | Analytics & Event Tracking Platform      | Event ingestion, analytics pipelines, and behavioral tracking                    | Data Platform                | High       | Pending                                                                                  |
-| 20  | Data Pipeline & Streaming Platform       | Event ingestion, stream processing, and data pipelines                           | Data Engineering             | High       | Pending                                                                                  |
-| 21  | Document Collaboration Platform          | Shared editing, document storage, and revision history                           | Collaboration                | High       | Pending                                                                                  |
-| 22  | Cloud File Storage Platform              | Large-scale file storage, access control, and sharing                            | Storage Platform             | High       | Pending                                                                                  |
-| 23  | API Management Platform                  | API gateway, rate limiting, developer portal, and analytics                      | Platform Infrastructure      | High       | Pending                                                                                  |
-| 24  | Identity Verification (KYC) Platform     | User identity verification, document checks, and risk scoring                    | FinTech / Compliance         | High       | Pending                                                                                  |
-| 25  | Logistics & Delivery Tracking Platform   | Shipment tracking, routing, and delivery status updates                          | Logistics Platform           | High       | Pending                                                                                  |
-| 26  | Social Network Platform                  | User graph, feeds, interactions, and content distribution                        | Social Platform              | Very High  | Pending                                                                                  |
+| #   | System                        | What It Covers                                                 | Category          | Complexity | Link                                                                     |
+| --- | ----------------------------- | -------------------------------------------------------------- | ----------------- | ---------- | ------------------------------------------------------------------------ |
+| 1   | E-Commerce Platform           | Product catalog, shopping cart, checkout, and order management | Commerce Platform | High       | [Go](./)                                                                 |
+| 2   | E-Wallet Platform             | Wallet balances, top-ups, transfers, and transaction records   | FinTech           | High       | [Go](./Larger%20System/08_E-Wallet%20Platform/02-System-Architecture.md) |
+| 3   | Social Network Platform       | User graph, feeds, interactions, and content distribution      | Social Platform   | Very High  | Pending                                                                  |
+| 4   | Hiring & Recruitment Platform | Job postings, candidate pipeline, interview workflow, hiring   | HR Tech Platform  | Medium     | Pending                                                                  |
 
 ## Prompt
+
+Prompt for generating for example business requirement specifications for enterprise SaaS products.
 
 ```TEXT
 You are a Senior Product Manager and Business Analyst responsible for writing detailed Business Requirement Specifications for enterprise SaaS software products.
