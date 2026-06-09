@@ -10,11 +10,11 @@ date: 2026-06-08
 
 > **สมมติฐานการประมาณราคา:** ราคาทั้งหมดเป็นราคาประมาณการแบบ on-demand (USD/เดือน) อ้างอิงจาก public pricing ของผู้ให้บริการแต่ละราย ภูมิภาค Asia Pacific (Singapore / Southeast Asia ใกล้เคียง) ณ กลางปี 2026 โดยคำนวณ 1 เดือน = 730 ชั่วโมง ตัวเลขจริงอาจแตกต่างตาม discount, reserved/savings plan, data transfer และ usage pattern จริง สำหรับ Huawei Cloud ซึ่งมีข้อมูลราคาเปิดเผยต่อสาธารณะค่อนข้างจำกัด ตัวเลขถูกประมาณจาก spec ที่เทียบเคียงได้กับผู้ให้บริการรายอื่นและรูปแบบราคาทั่วไปของภูมิภาค APAC
 >
-> สถาปัตยกรรมอ้างอิงจาก `02-System-Architecture.md` ซึ่งเลือกใช้ Kubernetes (managed), PostgreSQL (managed RDB), Redis (managed cache), OpenSearch/Elasticsearch (managed search), Kafka (managed streaming), Load Balancer, NAT Gateway, Object Storage และ Secrets/Key Management เป็นองค์ประกอบหลักของทุก tier
+> สถาปัตยกรรมอ้างอิงจาก `03-System-Architecture.md` ซึ่งเลือกใช้ Kubernetes (managed), PostgreSQL (managed RDB), Redis (managed cache), OpenSearch/Elasticsearch (managed search), Kafka (managed streaming), Load Balancer, NAT Gateway, Object Storage และ Secrets/Key Management เป็นองค์ประกอบหลักของทุก tier
 
 ## การจัดกลุ่ม Environment และผลต่อ Infrastructure (มุมมองเสริม)
 
-`02-System-Architecture.md` กำหนด Environment Strategy ไว้ 5 environments คือ Development, SIT/QA, UAT, Staging และ Production ตารางหลักของเอกสารนี้ (ในแต่ละ Cloud × Tier ด้านบน) ยังคงยึดสมมติฐาน **"1 ชุด infra ต่อ tier"** คือไม่ปรับ quantity ตามจำนวน environment ส่วนนี้นำเสนอ**มุมมองเสริม**สำหรับกรณีที่ทีมต้องการแยกประเมิน/ขออนุมัติงบประมาณตามกลุ่ม environment โดยจัดกลุ่ม 5 environments ออกเป็น 3 pool ที่สามารถแชร์ resource กันได้บางส่วน เพื่อลดต้นทุนรวม:
+`03-System-Architecture.md` กำหนด Environment Strategy ไว้ 5 environments คือ Development, SIT/QA, UAT, Staging และ Production ตารางหลักของเอกสารนี้ (ในแต่ละ Cloud × Tier ด้านบน) ยังคงยึดสมมติฐาน **"1 ชุด infra ต่อ tier"** คือไม่ปรับ quantity ตามจำนวน environment ส่วนนี้นำเสนอ**มุมมองเสริม**สำหรับกรณีที่ทีมต้องการแยกประเมิน/ขออนุมัติงบประมาณตามกลุ่ม environment โดยจัดกลุ่ม 5 environments ออกเป็น 3 pool ที่สามารถแชร์ resource กันได้บางส่วน เพื่อลดต้นทุนรวม:
 
 - **กลุ่ม Dev + SIT/QA (shared pool)** — งานพัฒนาและ integration testing เบื้องต้น traffic ต่ำ ใช้ namespace/pool ร่วมกันได้ และลดขนาด replica ลงได้มาก
 - **กลุ่ม UAT + Staging (shared pool)** — pre-production ต้อง mirror สถาปัตยกรรมของ production เพื่อทดสอบ acceptance ได้สมจริง แต่ traffic ยังต่ำกว่า production มาก จึงแชร์ pool เดียวกันได้
@@ -43,7 +43,7 @@ date: 2026-06-08
 
 ## Cloud: Amazon Web Services (AWS)
 
-AWS คือผู้ให้บริการหลักที่ระบุไว้ใน `02-System-Architecture.md` (ทุกองค์ประกอบมี service ตรงตัวให้เลือกใช้ครบ ทั้ง EKS, RDS, ElastiCache, OpenSearch, MSK, ALB, Secrets Manager) จึงเหมาะกับ**ทุก tier**โดยไม่ต้องดัดแปลงสถาปัตยกรรม:
+AWS คือผู้ให้บริการหลักที่ระบุไว้ใน `03-System-Architecture.md` (ทุกองค์ประกอบมี service ตรงตัวให้เลือกใช้ครบ ทั้ง EKS, RDS, ElastiCache, OpenSearch, MSK, ALB, Secrets Manager) จึงเหมาะกับ**ทุก tier**โดยไม่ต้องดัดแปลงสถาปัตยกรรม:
 
 - **Minimum**: ตั้งต้นได้ทันทีด้วยบริการ managed ครบทุกตัวในขนาดเล็กสุด ไม่มี service ที่ต้อง self-manage จึงลดภาระทีม ops ตั้งแต่วันแรก
 - **Recommended and Scaling**: ฟีเจอร์ HA (RDS Multi-AZ, ElastiCache replica, OpenSearch multi-node) และ HPA บน EKS ตรงกับ "High Availability & Scalability" ที่ระบุไว้ในสถาปัตยกรรมพอดี ทำให้ scale ได้โดยไม่ต้องเปลี่ยนแพลตฟอร์ม
@@ -77,6 +77,27 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |   ≈ $1,577.60 | ลดลง ≈ $295.80 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |     ≈ $986.00 | ลดลงอีก ≈ $591.60 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                         | Instance Name         | Specification                                                         | Quantity | Unit Price |          Total Price |
+| ------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------: |
+| Amazon EC2 (Observability Node) | m6i.large             | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $70.08 |               $70.08 |
+| Amazon EBS (gp3)                | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~100 GB)    |      100 |   $0.08/GB |                $8.00 |
+| Amazon S3                       | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.023/GB |                $4.60 |
+|                                 |                       |                                                                       |          |  **Total** | **≈ $82.68 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (AWS native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                               | Instance Name        | Specification                                        | Quantity | Unit Price |           Total Price |
+| ------------------------------------- | -------------------- | ---------------------------------------------------- | -------: | ---------: | --------------------: |
+| AWS Distro for OpenTelemetry (ADOT)   | Collector Deployment | Telemetry pipeline สำหรับ metrics, logs, traces บน EKS |        1 |      $0.00 |                 $0.00 |
+| Amazon Managed Service for Prometheus | Metrics Backend      | Metrics ingestion, query และ storage (scale เล็ก)     |        1 |     $75.00 |                $75.00 |
+| Amazon Managed Grafana                | Dashboard            | Dashboard, alerting สำหรับทีม ~5 users                  |        5 | $9.00/user |                $45.00 |
+| Amazon CloudWatch Logs                | Log Aggregation      | Centralized application logs ปริมาณเล็ก                |        1 |     $50.00 |                $50.00 |
+| AWS X-Ray                             | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ            |        1 |     $10.00 |                $10.00 |
+|                                       |                      |                                                      |          |  **Total** | **≈ $180.00 / month** |
 ### Recommended and Scaling
 
 This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
@@ -105,6 +126,27 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |   ≈ $5,191.71 | ลดลง ≈ $973.45 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                     |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |   ≈ $3,244.82 | ลดลงอีก ≈ $1,946.89 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                         | Instance Name         | Specification                                                         | Quantity | Unit Price |           Total Price |
+| ------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Amazon EC2 (Observability Node) | m6i.large             | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $70.08 |                $70.08 |
+| Amazon EBS (gp3)                | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~200 GB)    |      200 |   $0.08/GB |                $16.00 |
+| Amazon S3                       | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.023/GB |                $23.00 |
+|                                 |                       |                                                                       |          |  **Total** | **≈ $109.08 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (AWS native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                               | Instance Name        | Specification                                                 | Quantity | Unit Price |           Total Price |
+| ------------------------------------- | -------------------- | ------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| AWS Distro for OpenTelemetry (ADOT)   | Collector Deployment | Telemetry pipeline สำหรับ metrics, logs, traces บน EKS          |        1 |      $0.00 |                 $0.00 |
+| Amazon Managed Service for Prometheus | Metrics Backend      | Metrics ingestion, query และ storage สำหรับ production workload |        1 |     $75.00 |                $75.00 |
+| Amazon Managed Grafana                | Dashboard            | Dashboard, alerting สำหรับทีม ~5 users                           |        5 | $9.00/user |                $45.00 |
+| Amazon CloudWatch Logs                | Log Aggregation      | Centralized application logs ปริมาณกลาง                        |        1 |     $50.00 |                $50.00 |
+| AWS X-Ray                             | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ                     |        1 |     $10.00 |                $10.00 |
+|                                       |                      |                                                               |          |  **Total** | **≈ $180.00 / month** |
 ### Long-term
 
 This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
@@ -133,6 +175,27 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |  ≈ $22,018.27 | ลดลง ≈ $4,128.43 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |  ≈ $13,761.42 | ลดลงอีก ≈ $8,256.85 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                         | Instance Name         | Specification                                                               | Quantity | Unit Price |           Total Price |
+| ------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Amazon EC2 (Observability Node) | m6i.xlarge            | 4 vCPU, 16 GB — runs OTel Collector, Prometheus (HA), Grafana, Loki, Jaeger |        1 |    $140.16 |               $140.16 |
+| Amazon EBS (gp3)                | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~500 GB)          |      500 |   $0.08/GB |                $40.00 |
+| Amazon S3                       | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.023/GB |               $115.00 |
+|                                 |                       |                                                                             |          |  **Total** | **≈ $295.16 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (AWS native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                               | Instance Name        | Specification                                          | Quantity | Unit Price |           Total Price |
+| ------------------------------------- | -------------------- | ------------------------------------------------------ | -------: | ---------: | --------------------: |
+| AWS Distro for OpenTelemetry (ADOT)   | Collector Deployment | Standard telemetry pipeline สำหรับทุก service และ cluster |        1 |      $0.00 |                 $0.00 |
+| Amazon Managed Service for Prometheus | Metrics Backend      | Metrics backend สำหรับ scale ระยะยาว                     |        1 |    $350.00 |               $350.00 |
+| Amazon Managed Grafana                | Dashboard            | Enterprise dashboard สำหรับทีม ~15 users                  |       15 | $9.00/user |               $135.00 |
+| Amazon CloudWatch Logs                | Log Aggregation      | Centralized logs และ query ระยะยาว                     |        1 |    $250.00 |               $250.00 |
+| AWS X-Ray                             | Distributed Tracing  | Production tracing สำหรับ request ปริมาณสูง                |        1 |     $50.00 |                $50.00 |
+|                                       |                      |                                                        |          |  **Total** | **≈ $785.00 / month** |
 ## Cloud: Google Cloud Platform (GCP)
 
 GCP เหมาะกับทีมที่เน้น Kubernetes-native และต้นทุนคุ้มค่าต่อ compute (GKE และ Compute Engine ราคาแข่งขันได้):
@@ -169,6 +232,27 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |   ≈ $1,068.70 | ลดลง ≈ $200.38 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |     ≈ $667.94 | ลดลงอีก ≈ $400.76 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                             | Instance Name         | Specification                                                         | Quantity | Unit Price |          Total Price |
+| ----------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------: |
+| Compute Engine (Observability Node) | e2-standard-2         | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $48.92 |               $48.92 |
+| Persistent Disk (SSD)               | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~100 GB)    |      100 |   $0.17/GB |               $17.00 |
+| Cloud Storage                       | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.020/GB |                $4.00 |
+|                                     |                       |                                                                       |          |  **Total** | **≈ $69.92 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (GCP native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                                     | Instance Name        | Specification                                                   | Quantity | Unit Price |          Total Price |
+| ------------------------------------------- | -------------------- | --------------------------------------------------------------- | -------: | ---------: | -------------------: |
+| Google Cloud OpenTelemetry Collector        | Collector Deployment | Telemetry pipeline สำหรับ metrics, logs, traces บน GKE            |        1 |      $0.00 |                $0.00 |
+| Google Cloud Managed Service for Prometheus | Metrics Backend      | Metrics ingestion, query และ storage (scale เล็ก)                |        1 |     $20.00 |               $20.00 |
+| Cloud Monitoring                            | Dashboard & Alerting | Dashboard และ alerting พื้นฐาน (free tier รองรับ workload ขนาดเล็ก) |        1 |      $0.00 |                $0.00 |
+| Cloud Logging                               | Log Aggregation      | Centralized application logs                                    |        1 |     $50.00 |               $50.00 |
+| Cloud Trace                                 | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ                       |        1 |      $5.00 |                $5.00 |
+|                                             |                      |                                                                 |          |  **Total** | **≈ $75.00 / month** |
 ### Recommended and Scaling
 
 This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
@@ -197,6 +281,27 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |   ≈ $5,005.63 | ลดลง ≈ $938.56 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                     |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |   ≈ $3,128.52 | ลดลงอีก ≈ $1,877.11 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                             | Instance Name         | Specification                                                         | Quantity | Unit Price |           Total Price |
+| ----------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Compute Engine (Observability Node) | e2-standard-2         | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $48.92 |                $48.92 |
+| Persistent Disk (SSD)               | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~200 GB)    |      200 |   $0.17/GB |                $34.00 |
+| Cloud Storage                       | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.020/GB |                $20.00 |
+|                                     |                       |                                                                       |          |  **Total** | **≈ $102.92 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (GCP native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                                     | Instance Name        | Specification                                                 | Quantity | Unit Price |           Total Price |
+| ------------------------------------------- | -------------------- | ------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Google Cloud OpenTelemetry Collector        | Collector Deployment | Telemetry pipeline สำหรับ metrics, logs, traces บน GKE          |        1 |      $0.00 |                 $0.00 |
+| Google Cloud Managed Service for Prometheus | Metrics Backend      | Metrics ingestion, query และ storage สำหรับ production workload |        1 |     $75.00 |                $75.00 |
+| Cloud Monitoring                            | Dashboard & Alerting | Dashboard และ alerting ผ่าน Google Cloud Monitoring            |        1 |      $0.00 |                 $0.00 |
+| Cloud Logging                               | Log Aggregation      | Centralized application logs ปริมาณกลาง                        |        1 |     $50.00 |                $50.00 |
+| Cloud Trace                                 | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ                     |        1 |     $10.00 |                $10.00 |
+|                                             |                      |                                                               |          |  **Total** | **≈ $135.00 / month** |
 ### Long-term
 
 This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
@@ -225,6 +330,27 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |  ≈ $18,820.29 | ลดลง ≈ $3,528.80 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |  ≈ $11,762.68 | ลดลงอีก ≈ $7,057.61 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                             | Instance Name         | Specification                                                               | Quantity | Unit Price |           Total Price |
+| ----------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Compute Engine (Observability Node) | n2-standard-4         | 4 vCPU, 16 GB — runs OTel Collector, Prometheus (HA), Grafana, Loki, Jaeger |        1 |    $164.16 |               $164.16 |
+| Persistent Disk (SSD)               | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~500 GB)          |      500 |   $0.17/GB |                $85.00 |
+| Cloud Storage                       | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.020/GB |               $100.00 |
+|                                     |                       |                                                                             |          |  **Total** | **≈ $349.16 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (GCP native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                                     | Instance Name        | Specification                                          | Quantity | Unit Price |           Total Price |
+| ------------------------------------------- | -------------------- | ------------------------------------------------------ | -------: | ---------: | --------------------: |
+| Google Cloud OpenTelemetry Collector        | Collector Deployment | Standard telemetry pipeline สำหรับทุก service และ cluster |        1 |      $0.00 |                 $0.00 |
+| Google Cloud Managed Service for Prometheus | Metrics Backend      | Metrics backend สำหรับ scale ระยะยาว                     |        1 |    $350.00 |               $350.00 |
+| Cloud Monitoring                            | Dashboard & Alerting | Operational dashboard กลางของ platform                 |        1 |      $0.00 |                 $0.00 |
+| Cloud Logging                               | Log Aggregation      | Centralized logs พร้อม long-term sink                   |        1 |    $250.00 |               $250.00 |
+| Cloud Trace                                 | Distributed Tracing  | Production tracing สำหรับ request ปริมาณสูง                |        1 |     $50.00 |                $50.00 |
+|                                             |                      |                                                        |          |  **Total** | **≈ $650.00 / month** |
 ## Cloud: Microsoft Azure (Azure)
 
 Azure เหมาะกับองค์กรที่มี ecosystem ของ Microsoft อยู่แล้ว (Active Directory, .NET, Office 365) และต้องการ integration ที่ราบรื่น:
@@ -261,6 +387,27 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |   ≈ $1,152.50 | ลดลง ≈ $216.09 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |     ≈ $720.31 | ลดลงอีก ≈ $432.19 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                               | Instance Name         | Specification                                                         | Quantity | Unit Price |          Total Price |
+| ------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------: |
+| Virtual Machines (Observability Node) | Standard_D2s_v5       | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $70.08 |               $70.08 |
+| Managed Disk (Premium SSD)            | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~100 GB)    |      100 |  $0.135/GB |               $13.50 |
+| Azure Blob Storage                    | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.018/GB |                $3.60 |
+|                                       |                       |                                                                       |          |  **Total** | **≈ $87.18 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (Azure native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                                      | Instance Name             | Specification                                        | Quantity | Unit Price |           Total Price |
+| -------------------------------------------- | ------------------------- | ---------------------------------------------------- | -------: | ---------: | --------------------: |
+| Azure Monitor OpenTelemetry                  | Collector Deployment      | Telemetry pipeline สำหรับ metrics, logs, traces บน AKS |        1 |      $0.00 |                 $0.00 |
+| Azure Monitor managed service for Prometheus | Metrics Backend           | Metrics ingestion, query และ storage                 |        1 |     $75.00 |                $75.00 |
+| Azure Managed Grafana (Essential)            | Dashboard                 | Dashboard, alerting และ operational view             |        1 |     $49.00 |                $49.00 |
+| Azure Monitor Logs / Log Analytics           | Log Aggregation           | Centralized application logs ปริมาณเล็ก                |        1 |     $50.00 |                $50.00 |
+| Application Insights                         | Distributed Tracing / APM | Distributed tracing และ APM สำหรับ request flow สำคัญ    |        1 |     $10.00 |                $10.00 |
+|                                              |                           |                                                      |          |  **Total** | **≈ $184.00 / month** |
 ### Recommended and Scaling
 
 This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
@@ -289,6 +436,27 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |   ≈ $4,556.03 | ลดลง ≈ $854.26 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                     |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |   ≈ $2,847.52 | ลดลงอีก ≈ $1,708.51 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                               | Instance Name         | Specification                                                         | Quantity | Unit Price |           Total Price |
+| ------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Virtual Machines (Observability Node) | Standard_D2s_v5       | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $70.08 |                $70.08 |
+| Managed Disk (Premium SSD)            | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~200 GB)    |      200 |  $0.135/GB |                $27.00 |
+| Azure Blob Storage                    | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.018/GB |                $18.00 |
+|                                       |                       |                                                                       |          |  **Total** | **≈ $115.08 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (Azure native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                                      | Instance Name             | Specification                                                 | Quantity | Unit Price |           Total Price |
+| -------------------------------------------- | ------------------------- | ------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Azure Monitor OpenTelemetry                  | Collector Deployment      | Telemetry pipeline สำหรับ metrics, logs, traces บน AKS          |        1 |      $0.00 |                 $0.00 |
+| Azure Monitor managed service for Prometheus | Metrics Backend           | Metrics ingestion, query และ storage สำหรับ production workload |        1 |     $75.00 |                $75.00 |
+| Azure Managed Grafana (Essential)            | Dashboard                 | Dashboard, alerting และ operational view                      |        1 |     $49.00 |                $49.00 |
+| Azure Monitor Logs / Log Analytics           | Log Aggregation           | Centralized application logs ปริมาณกลาง                        |        1 |     $50.00 |                $50.00 |
+| Application Insights                         | Distributed Tracing / APM | Distributed tracing และ APM สำหรับ request flow สำคัญ             |        1 |     $10.00 |                $10.00 |
+|                                              |                           |                                                               |          |  **Total** | **≈ $184.00 / month** |
 ### Long-term
 
 This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
@@ -317,6 +485,27 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 |  ≈ $19,403.97 | ลดลง ≈ $3,638.24 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |  ≈ $12,127.48 | ลดลงอีก ≈ $7,276.49 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                               | Instance Name         | Specification                                                               | Quantity | Unit Price |           Total Price |
+| ------------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------: |
+| Virtual Machines (Observability Node) | Standard_D4s_v5       | 4 vCPU, 16 GB — runs OTel Collector, Prometheus (HA), Grafana, Loki, Jaeger |        1 |    $140.16 |               $140.16 |
+| Managed Disk (Premium SSD)            | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~500 GB)          |      500 |  $0.135/GB |                $67.50 |
+| Azure Blob Storage                    | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.018/GB |                $90.00 |
+|                                       |                       |                                                                             |          |  **Total** | **≈ $297.66 / month** |
+
+**ตัวเลือก B — Cloud Managed Services (Azure native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+
+| Service                                      | Instance Name             | Specification                                          | Quantity | Unit Price |           Total Price |
+| -------------------------------------------- | ------------------------- | ------------------------------------------------------ | -------: | ---------: | --------------------: |
+| Azure Monitor OpenTelemetry                  | Collector Deployment      | Standard telemetry pipeline สำหรับทุก service และ cluster |        1 |      $0.00 |                 $0.00 |
+| Azure Monitor managed service for Prometheus | Metrics Backend           | Metrics backend สำหรับ scale ระยะยาว                     |        1 |    $350.00 |               $350.00 |
+| Azure Managed Grafana (Standard)             | Dashboard                 | Enterprise dashboard, permission และ operational view  |        1 |     $99.00 |                $99.00 |
+| Azure Monitor Logs / Log Analytics           | Log Aggregation           | Centralized logs และ query ระยะยาว                     |        1 |    $250.00 |               $250.00 |
+| Application Insights                         | Distributed Tracing / APM | Production tracing และ APM สำหรับ request ปริมาณสูง        |        1 |     $50.00 |                $50.00 |
+|                                              |                           |                                                        |          |  **Total** | **≈ $749.00 / month** |
 ## Cloud: Huawei Cloud (Huawei)
 
 Huawei เหมาะกับธุรกิจที่ต้องการขยายตลาดในจีนแผ่นดินใหญ่และเอเชียตะวันออกเฉียงใต้ ซึ่งมี data center ในภูมิภาคและราคาที่แข่งขันได้:
@@ -353,6 +542,27 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 | ≈ $1,439.36 (estimated) | ลดลง ≈ $269.88 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 |   ≈ $899.60 (estimated) | ลดลงอีก ≈ $539.76 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                                   | Instance Name         | Specification                                                         | Quantity | Unit Price |                      Total Price |
+| ----------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------------------: |
+| Elastic Cloud Server (Observability Node) | s6.xlarge.2           | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $65.00 |                           $65.00 |
+| Elastic Volume Service (EVS)              | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~100 GB)    |      100 |   $0.08/GB |                            $8.00 |
+| Object Storage Service (OBS)              | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.023/GB |                            $4.60 |
+|                                           |                       |                                                                       |          |  **Total** | **≈ $77.60 / month (estimated)** |
+
+**ตัวเลือก B — Cloud Managed Services (Huawei native)** _(เหมาะกับทีมที่ต้องการลด ops burden — อย่างไรก็ตาม Huawei Cloud ยังไม่มี managed Prometheus หรือ managed Grafana โดยตรง จึงใช้ Cloud Eye + AOM แทน metrics/dashboard และ APM แทน Jaeger)_
+
+| Service                                  | Instance Name                   | Specification                                                             | Quantity | Unit Price |                       Total Price |
+| ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
+| OpenTelemetry Collector on CCE           | Collector Deployment            | Telemetry pipeline สำหรับ metrics, logs, traces บน CCE                      |        1 |      $0.00 |                             $0.00 |
+| Cloud Eye                                | Infra Metrics & Alerting        | Infrastructure metrics และ alarm สำหรับ cloud resources                     |        1 |     $30.00 |                            $30.00 |
+| Application Operations Management (AOM)  | Application Metrics & Dashboard | Metrics collection, dashboard, alerting (แทน Prometheus + Grafana บางส่วน) |        1 |     $30.00 |                            $30.00 |
+| Log Tank Service (LTS)                   | Log Aggregation                 | Centralized application logs (แทน Loki)                                   |        1 |     $30.00 |                            $30.00 |
+| Application Performance Management (APM) | Distributed Tracing             | Distributed tracing สำหรับ request flow (แทน Jaeger)                        |        1 |     $30.00 |                            $30.00 |
+|                                          |                                 |                                                                           |          |  **Total** | **≈ $120.00 / month (estimated)** |
 ### Recommended and Scaling
 
 This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
@@ -381,6 +591,27 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 | ≈ $4,840.00 (estimated) | ลดลง ≈ $907.50 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                     |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 | ≈ $3,025.00 (estimated) | ลดลงอีก ≈ $1,815.00 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                                   | Instance Name         | Specification                                                         | Quantity | Unit Price |                       Total Price |
+| ----------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
+| Elastic Cloud Server (Observability Node) | s6.xlarge.2           | 2 vCPU, 8 GB — runs OTel Collector, Prometheus, Grafana, Loki, Jaeger |        1 |     $65.00 |                            $65.00 |
+| Elastic Volume Service (EVS)              | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~200 GB)    |      200 |   $0.08/GB |                            $16.00 |
+| Object Storage Service (OBS)              | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.023/GB |                            $23.00 |
+|                                           |                       |                                                                       |          |  **Total** | **≈ $104.00 / month (estimated)** |
+
+**ตัวเลือก B — Cloud Managed Services (Huawei native)** _(เหมาะกับทีมที่ต้องการลด ops burden — อย่างไรก็ตาม Huawei Cloud ยังไม่มี managed Prometheus หรือ managed Grafana โดยตรง จึงใช้ Cloud Eye + AOM แทน metrics/dashboard และ APM แทน Jaeger)_
+
+| Service                                  | Instance Name                   | Specification                                                             | Quantity | Unit Price |                       Total Price |
+| ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
+| OpenTelemetry Collector on CCE           | Collector Deployment            | Telemetry pipeline สำหรับ metrics, logs, traces บน CCE                      |        1 |      $0.00 |                             $0.00 |
+| Cloud Eye                                | Infra Metrics & Alerting        | Infrastructure metrics และ alarm สำหรับ production workload                 |        1 |     $50.00 |                            $50.00 |
+| Application Operations Management (AOM)  | Application Metrics & Dashboard | Metrics collection, dashboard, alerting (แทน Prometheus + Grafana บางส่วน) |        1 |     $50.00 |                            $50.00 |
+| Log Tank Service (LTS)                   | Log Aggregation                 | Centralized application logs ปริมาณกลาง (แทน Loki)                         |        1 |    $100.00 |                           $100.00 |
+| Application Performance Management (APM) | Distributed Tracing             | Distributed tracing สำหรับ request flow สำคัญ (แทน Jaeger)                    |        1 |     $50.00 |                            $50.00 |
+|                                          |                                 |                                                                           |          |  **Total** | **≈ $250.00 / month (estimated)** |
 ### Long-term
 
 This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
@@ -409,11 +640,30 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | ตัดกลุ่ม Dev + SIT/QA ออก → เหลือ UAT+Staging + Production | UAT, Staging, Production                      |               ×1.6 | ≈ $20,352.00 (estimated) | ลดลง ≈ $3,816.00 (ส่วนของ Dev + SIT/QA, ×0.3 หายไป)                                   |
 | ตัดกลุ่ม UAT + Staging ออกด้วย → เหลือเฉพาะ Production      | Production                                    |               ×1.0 | ≈ $12,720.00 (estimated) | ลดลงอีก ≈ $7,632.00 (ส่วนของ UAT + Staging, ×0.6 หายไป) — เท่ากับยอด "1 ชุด" ในตารางข้างต้น |
 
+#### OpenTelemetry
+
+**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+
+| Service                                   | Instance Name         | Specification                                                               | Quantity | Unit Price |                       Total Price |
+| ----------------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
+| Elastic Cloud Server (Observability Node) | s6.2xlarge.2          | 4 vCPU, 16 GB — runs OTel Collector, Prometheus (HA), Grafana, Loki, Jaeger |        1 |    $125.00 |                           $125.00 |
+| Elastic Volume Service (EVS)              | Observability Volume  | Prometheus TSDB, Grafana DB, Loki buffer, Jaeger storage (~500 GB)          |      500 |   $0.08/GB |                            $40.00 |
+| Object Storage Service (OBS)              | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.023/GB |                           $115.00 |
+|                                           |                       |                                                                             |          |  **Total** | **≈ $280.00 / month (estimated)** |
+
+**ตัวเลือก B — Cloud Managed Services (Huawei native)** _(เหมาะกับทีมที่ต้องการลด ops burden — อย่างไรก็ตาม Huawei Cloud ยังไม่มี managed Prometheus หรือ managed Grafana โดยตรง จึงใช้ Cloud Eye + AOM แทน metrics/dashboard และ APM แทน Jaeger)_
+
+| Service                                  | Instance Name                   | Specification                                                                             | Quantity | Unit Price |                       Total Price |
+| ---------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
+| OpenTelemetry Collector on CCE           | Collector Deployment            | Standard telemetry pipeline สำหรับทุก service และ cluster                                    |        1 |      $0.00 |                             $0.00 |
+| Cloud Eye                                | Infra Metrics & Alerting        | Infrastructure metrics และ alarm สำหรับหลาย environment / region                            |        1 |    $100.00 |                           $100.00 |
+| Application Operations Management (AOM)  | Application Metrics & Dashboard | Metrics collection, dashboard, alerting ระดับ enterprise (แทน Prometheus + Grafana บางส่วน) |        1 |    $100.00 |                           $100.00 |
+| Log Tank Service (LTS)                   | Log Aggregation                 | Centralized logs และ query ระยะยาว (แทน Loki)                                             |        1 |    $250.00 |                           $250.00 |
+| Application Performance Management (APM) | Distributed Tracing             | Production tracing สำหรับ request ปริมาณสูง (แทน Jaeger)                                      |        1 |    $100.00 |                           $100.00 |
+|                                          |                                 |                                                                                           |          |  **Total** | **≈ $550.00 / month (estimated)** |
 ## DevOps & Observability Tooling
 
-ส่วนนี้เพิ่มเติมต้นทุนที่ไม่ได้รวมอยู่ในตาราง infrastructure หลักด้านบน แต่จำเป็นต่อการ build, deploy และ monitor ระบบจริงตามที่ระบุไว้ใน `02-System-Architecture.md` (หัวข้อ CI/CD และ OBSERVABILITY) ได้แก่ Container/Image Registry (เก็บและ pull container image + Helm chart), CI/CD Pipeline (source control, runner, GitOps deployment) และ Observability Stack (metrics, logs, tracing, dashboard, alerting) ซึ่งสถาปัตยกรรมเลือกใช้เป็น self-hosted open-source (Prometheus + Grafana + Loki + OpenTelemetry + Jaeger + ArgoCD) บน Kubernetes แทน managed service ของแต่ละ cloud (เช่น CloudWatch, Cloud Monitoring, Azure Monitor) สมมติฐานปริมาณ (storage, traffic, CI minutes) อ้างอิงสัดส่วนเดียวกับ tier ของ infrastructure หลัก โดยไม่ปรับตามจำนวน environment (สมมติฐานคงที่ 1 ชุด infra ต่อ tier ตามที่ระบุไว้ด้านบน)
-
-### Shared CI/CD Tooling (ต้นทุนเดียวกันทุก Cloud — เป็น SaaS ภายนอก)
+ส่วนนี้เพิ่มเติมต้นทุนที่ไม่ได้รวมอยู่ในตาราง infrastructure หลักด้านบน แต่จำเป็นต่อการ build, deploy และ monitor ระบบจริงตามที่ระบุไว้ใน `03-System-Architecture.md` (หัวข้อ CI/CD และ OBSERVABILITY) ได้แก่ Container/Image Registry (เก็บและ pull container image + Helm chart), CI/CD Pipeline (source control, runner, GitOps deployment) และ Observability Stack (metrics, logs, tracing, dashboard, alerting) ซึ่งสถาปัตยกรรมเลือกใช้เป็น self-hosted open-source (Prometheus + Grafana + Loki + OpenTelemetry + Jaeger + ArgoCD) บน Kubernetes แทน managed service ของแต่ละ cloud (เช่น CloudWatch, Cloud Monitoring, Azure Monitor) สมมติฐานปริมาณ (storage, traffic, CI minutes) อ้างอิงสัดส่วนเดียวกับ tier ของ infrastructure หลัก โดยไม่ปรับตามจำนวน environment (สมมติฐานคงที่ 1 ชุด infra ต่อ tier ตามที่ระบุไว้ด้านบน)
 
 GitHub และ GitHub Actions เป็น SaaS ของ Microsoft/GitHub ไม่ผูกกับ cloud provider ใด ค่าใช้จ่ายจึงเท่ากันไม่ว่าจะ deploy ไปยัง cloud ใด ส่วน ArgoCD (GitOps deployment) และ Helm (Kubernetes packaging) เป็น open-source ที่รันอยู่บน cluster เดิม จึงไม่มีค่า license แยก — มีเพียงค่า compute ที่ถูกนับรวมอยู่ใน "Observability & DevOps Workload" ของแต่ละ cloud ด้านล่าง และ Helm chart ก็จัดเก็บอยู่ใน container registry เดียวกัน (รองรับ OCI artifact)
 
@@ -426,169 +676,3 @@ GitHub และ GitHub Actions เป็น SaaS ของ Microsoft/GitHub ไ
 | ArgoCD         | GitOps Deployment                           | Open-source, self-hosted บน cluster      |  รวมใน compute ของแต่ละ cloud |  รวมใน compute ของแต่ละ cloud |  รวมใน compute ของแต่ละ cloud |
 | Helm           | Chart Packaging & Repository (OCI)          | Open-source, เก็บใน registry เดียวกับ image | รวมใน Registry ของแต่ละ cloud | รวมใน Registry ของแต่ละ cloud | รวมใน Registry ของแต่ละ cloud |
 |                |                                             | **Subtotal (Shared)**                    |         **≈ $44.00 / month** |        **≈ $120.00 / month** |        **≈ $320.00 / month** |
-
-### Cloud: Amazon Web Services (AWS)
-
-#### Minimum
-
-> **เหตุผล**: ใช้ Amazon ECR เป็นทั้ง container registry และ Helm chart repository (รองรับ OCI artifact) ในปริมาณเล็กตามจำนวน service/chart ที่มี ~13 ตัว; รัน observability stack ทั้งหมด (Prometheus, Grafana, Loki, OpenTelemetry Collector, Jaeger, ArgoCD) รวมกันบน worker node ขนาดเล็ก 1 ตัว เพราะปริมาณ metrics/logs/traces ยังน้อยในช่วง MVP; ใช้ EBS เก็บ time-series data ระยะสั้นและ S3 เก็บ log/trace สำหรับ retention พื้นฐาน
-
-| Service                         | Instance Name                                 | Specification                                                                    | Quantity | Unit Price |          Total Price |
-| ------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- | -------: | ---------: | -------------------: |
-| Amazon ECR                      | Container & Helm OCI Registry                 | Image/chart storage (~50 GB)                                                     |       50 |   $0.10/GB |                $5.00 |
-| Amazon ECR                      | Data Transfer Out                             | Image pull traffic (~100 GB/เดือน)                                                |      100 |   $0.09/GB |                $9.00 |
-| Amazon EC2 (Observability Node) | m6i.large                                     | 2 vCPU, 8 GB — รัน Prometheus + Grafana + Loki + OTel Collector + Jaeger + ArgoCD |        1 |     $70.08 |               $70.08 |
-| Amazon EBS (gp3)                | Persistent Volume                             | Prometheus TSDB + Grafana DB (~100 GB)                                           |      100 |   $0.08/GB |                $8.00 |
-| Amazon S3                       | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~200 GB)                                            |      200 |  $0.023/GB |                $4.60 |
-|                                 |                                               |                                                                                  |          |  **Total** | **≈ $96.68 / month** |
-
-#### Recommended and Scaling
-
-> **เหตุผล**: ปริมาณ image/chart และ traffic เพิ่มตามจำนวน environment และความถี่ deploy ที่สูงขึ้น; แยก observability workload ออกเป็น dedicated node pool 2 ตัว (HA สำหรับ Prometheus/Loki) ตามแนวทาง production-grade monitoring; เพิ่มขนาด EBS และ S3 เพื่อรองรับ retention ที่ยาวขึ้นและ throughput ของ metrics/logs/traces ที่มาจาก ~13 microservices ในหลาย environment พร้อมกัน
-
-| Service                         | Instance Name                                 | Specification                                                  | Quantity | Unit Price |           Total Price |
-| ------------------------------- | --------------------------------------------- | -------------------------------------------------------------- | -------: | ---------: | --------------------: |
-| Amazon ECR                      | Container & Helm OCI Registry                 | Image/chart storage (~200 GB)                                  |      200 |   $0.10/GB |                $20.00 |
-| Amazon ECR                      | Data Transfer Out                             | Image pull traffic (~500 GB/เดือน)                              |      500 |   $0.09/GB |                $45.00 |
-| Amazon EC2 (Observability Node) | m6i.large                                     | 2 vCPU, 8 GB — dedicated node pool สำหรับ observability + GitOps |        2 |     $70.08 |               $140.16 |
-| Amazon EBS (gp3)                | Persistent Volume                             | Prometheus TSDB + Grafana DB (~500 GB)                         |      500 |   $0.08/GB |                $40.00 |
-| Amazon S3                       | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~1,000 GB)                        |    1,000 |  $0.023/GB |                $23.00 |
-|                                 |                                               |                                                                |          |  **Total** | **≈ $268.16 / month** |
-
-#### Long-term
-
-> **เหตุผล**: ขยาย registry และ traffic ตามจำนวน image/chart และความถี่ deploy ที่สูงมากในระดับ enterprise; ขยาย observability node pool เป็น 4 ตัวเพื่อรองรับ Prometheus/Loki แบบ sharded/HA และ Jaeger ที่ trace ปริมาณ request สูง; เพิ่ม retention policy ระยะยาวสำหรับ compliance/postmortem analysis ทำให้ปริมาณ log/trace/metrics storage โตขึ้นมาก
-
-| Service                         | Instance Name                                                    | Specification                                                     | Quantity | Unit Price |           Total Price |
-| ------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- | -------: | ---------: | --------------------: |
-| Amazon ECR                      | Container & Helm OCI Registry                                    | Image/chart storage (~1,000 GB)                                   |    1,000 |   $0.10/GB |               $100.00 |
-| Amazon ECR                      | Data Transfer Out                                                | Image pull traffic (~2,000 GB/เดือน)                               |    2,000 |   $0.09/GB |               $180.00 |
-| Amazon EC2 (Observability Node) | m6i.large                                                        | 2 vCPU, 8 GB — dedicated node pool (HA + sharded Loki/Prometheus) |        4 |     $70.08 |               $280.32 |
-| Amazon EBS (gp3)                | Persistent Volume                                                | Prometheus TSDB + Grafana DB (~2,000 GB)                          |    2,000 |   $0.08/GB |               $160.00 |
-| Amazon S3                       | Centralized Logs / Traces / Metrics Retention (long-term policy) | Loki chunks + Jaeger traces (~5,000 GB)                           |    5,000 |  $0.023/GB |               $115.00 |
-|                                 |                                                                  |                                                                   |          |  **Total** | **≈ $835.32 / month** |
-
-### Cloud: Google Cloud Platform (GCP)
-
-#### Minimum
-
-> **เหตุผล**: ใช้ Artifact Registry เป็น registry กลางสำหรับ container image และ Helm chart (รองรับ OCI) ขนาดเล็กตาม MVP; เนื่องจาก GCP ไม่มี managed Prometheus/Loki ในระบบนิเวศ จึง self-host ทั้ง stack บน Compute Engine ขนาดเล็ก 1 ตัวเหมือน AWS; ใช้ Persistent Disk SSD สำหรับ time-series data และ Cloud Storage สำหรับ log/trace retention พื้นฐาน
-
-| Service                             | Instance Name                                 | Specification                                                                    | Quantity | Unit Price |          Total Price |
-| ----------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- | -------: | ---------: | -------------------: |
-| Artifact Registry                   | Container & Helm OCI Registry                 | Image/chart storage (~50 GB)                                                     |       50 |   $0.10/GB |                $5.00 |
-| Artifact Registry                   | Network Egress                                | Image pull traffic (~100 GB/เดือน)                                                |      100 |   $0.12/GB |               $12.00 |
-| Compute Engine (Observability Node) | e2-standard-2                                 | 2 vCPU, 8 GB — รัน Prometheus + Grafana + Loki + OTel Collector + Jaeger + ArgoCD |        1 |     $48.92 |               $48.92 |
-| Persistent Disk (SSD)               | Block Storage                                 | Prometheus TSDB + Grafana DB (~100 GB)                                           |      100 |   $0.17/GB |               $17.00 |
-| Cloud Storage                       | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~200 GB)                                            |      200 |  $0.020/GB |                $4.00 |
-|                                     |                                               |                                                                                  |          |  **Total** | **≈ $86.92 / month** |
-
-#### Recommended and Scaling
-
-> **เหตุผล**: ปริมาณ image/chart และ traffic เพิ่มตามจำนวน environment ที่ใช้งานจริง; แยก observability workload เป็น dedicated node pool 2 ตัวเพื่อความเสถียรของ self-hosted stack (ไม่มี managed equivalent บน GCP); ขยาย Persistent Disk และ Cloud Storage รองรับ retention และ throughput ของ metrics/logs/traces จากหลาย microservices พร้อมกัน
-
-| Service                             | Instance Name                                 | Specification                                                  | Quantity | Unit Price |           Total Price |
-| ----------------------------------- | --------------------------------------------- | -------------------------------------------------------------- | -------: | ---------: | --------------------: |
-| Artifact Registry                   | Container & Helm OCI Registry                 | Image/chart storage (~200 GB)                                  |      200 |   $0.10/GB |                $20.00 |
-| Artifact Registry                   | Network Egress                                | Image pull traffic (~500 GB/เดือน)                              |      500 |   $0.12/GB |                $60.00 |
-| Compute Engine (Observability Node) | e2-standard-2                                 | 2 vCPU, 8 GB — dedicated node pool สำหรับ observability + GitOps |        2 |     $48.92 |                $97.84 |
-| Persistent Disk (SSD)               | Block Storage                                 | Prometheus TSDB + Grafana DB (~500 GB)                         |      500 |   $0.17/GB |                $85.00 |
-| Cloud Storage                       | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~1,000 GB)                        |    1,000 |  $0.020/GB |                $20.00 |
-|                                     |                                               |                                                                |          |  **Total** | **≈ $282.84 / month** |
-
-#### Long-term
-
-> **เหตุผล**: ขยาย registry, traffic และ observability node pool (4 ตัว) เพื่อรองรับ scale ระดับ enterprise; เนื่องจากต้อง self-manage ทั้ง compute และ storage ของ observability stack เอง (ไม่มี managed Prometheus/Loki บน GCP) ต้นทุนจึงเติบโตตาม node และ disk เป็นหลัก ทีม Platform/SRE จึงควรเตรียมแผนรองรับภาระ operation นี้ในระยะยาว
-
-| Service                             | Instance Name                                                    | Specification                                                     | Quantity | Unit Price |           Total Price |
-| ----------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- | -------: | ---------: | --------------------: |
-| Artifact Registry                   | Container & Helm OCI Registry                                    | Image/chart storage (~1,000 GB)                                   |    1,000 |   $0.10/GB |               $100.00 |
-| Artifact Registry                   | Network Egress                                                   | Image pull traffic (~2,000 GB/เดือน)                               |    2,000 |   $0.12/GB |               $240.00 |
-| Compute Engine (Observability Node) | e2-standard-2                                                    | 2 vCPU, 8 GB — dedicated node pool (HA + sharded Loki/Prometheus) |        4 |     $48.92 |               $195.68 |
-| Persistent Disk (SSD)               | Block Storage                                                    | Prometheus TSDB + Grafana DB (~2,000 GB)                          |    2,000 |   $0.17/GB |               $340.00 |
-| Cloud Storage                       | Centralized Logs / Traces / Metrics Retention (long-term policy) | Loki chunks + Jaeger traces (~5,000 GB)                           |    5,000 |  $0.020/GB |               $100.00 |
-|                                     |                                                                  |                                                                   |          |  **Total** | **≈ $975.68 / month** |
-
-### Cloud: Microsoft Azure (Azure)
-
-#### Minimum
-
-> **เหตุผล**: ใช้ Azure Container Registry tier Basic สำหรับ image/chart ขนาดเล็กในช่วง MVP (รองรับ Helm ผ่าน OCI artifact); self-host observability stack ทั้งหมดบน VM ขนาดเล็ก 1 ตัว เพราะ Azure เองก็ไม่มี managed Prometheus/Loki ในระบบนิเวศหลัก; ใช้ Managed Disk (Premium SSD) สำหรับ time-series data และ Blob Storage สำหรับ log/trace retention พื้นฐาน
-
-| Service                               | Instance Name                                 | Specification                                                                    | Quantity | Unit Price |           Total Price |
-| ------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- | -------: | ---------: | --------------------: |
-| Azure Container Registry              | Basic Tier (Container & Helm OCI Registry)    | รวม storage 10 GB, image/chart (~50 GB)                                          |        1 |   $5.00/mo |                 $5.00 |
-| Azure Container Registry              | Data Transfer Out                             | Image pull traffic (~100 GB/เดือน)                                                |      100 |  $0.087/GB |                 $8.70 |
-| Virtual Machines (Observability Node) | Standard_D2s_v5                               | 2 vCPU, 8 GB — รัน Prometheus + Grafana + Loki + OTel Collector + Jaeger + ArgoCD |        1 |     $70.08 |                $70.08 |
-| Managed Disk (Premium SSD)            | Block Storage                                 | Prometheus TSDB + Grafana DB (~100 GB)                                           |      100 |  $0.135/GB |                $13.50 |
-| Azure Blob Storage                    | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~200 GB)                                            |      200 |  $0.018/GB |                 $3.60 |
-|                                       |                                               |                                                                                  |          |  **Total** | **≈ $100.88 / month** |
-
-#### Recommended and Scaling
-
-> **เหตุผล**: อัปเกรดเป็น ACR Standard tier รองรับปริมาณ image/chart ที่มากขึ้นพร้อม throughput ที่ดีกว่า; แยก observability workload เป็น dedicated node pool 2 ตัวเพื่อความเสถียรของ self-hosted stack; ขยาย Managed Disk และ Blob Storage รองรับ retention และ throughput ของ metrics/logs/traces จากหลาย microservices ในหลาย environment
-
-| Service                               | Instance Name                                 | Specification                                                  | Quantity | Unit Price |           Total Price |
-| ------------------------------------- | --------------------------------------------- | -------------------------------------------------------------- | -------: | ---------: | --------------------: |
-| Azure Container Registry              | Standard Tier (Container & Helm OCI Registry) | รวม storage 100 GB, image/chart (~200 GB)                      |        1 |  $20.00/mo |                $20.00 |
-| Azure Container Registry              | Data Transfer Out                             | Image pull traffic (~500 GB/เดือน)                              |      500 |  $0.087/GB |                $43.50 |
-| Virtual Machines (Observability Node) | Standard_D2s_v5                               | 2 vCPU, 8 GB — dedicated node pool สำหรับ observability + GitOps |        2 |     $70.08 |               $140.16 |
-| Managed Disk (Premium SSD)            | Block Storage                                 | Prometheus TSDB + Grafana DB (~500 GB)                         |      500 |  $0.135/GB |                $67.50 |
-| Azure Blob Storage                    | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~1,000 GB)                        |    1,000 |  $0.018/GB |                $18.00 |
-|                                       |                                               |                                                                |          |  **Total** | **≈ $289.16 / month** |
-
-#### Long-term
-
-> **เหตุผล**: อัปเกรดเป็น ACR Premium tier รองรับ geo-replication และปริมาณ image/chart ระดับ enterprise; ขยาย observability node pool เป็น 4 ตัวพร้อม Managed Disk และ Blob Storage ขนาดใหญ่เพื่อรองรับ retention policy ระยะยาวและปริมาณ metrics/logs/traces ที่เพิ่มตามจำนวน microservices และ environment
-
-| Service                               | Instance Name                                                    | Specification                                                     | Quantity | Unit Price |           Total Price |
-| ------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- | -------: | ---------: | --------------------: |
-| Azure Container Registry              | Premium Tier (Container & Helm OCI Registry)                     | รวม storage 500 GB, image/chart (~1,000 GB)                       |        1 |  $50.00/mo |                $50.00 |
-| Azure Container Registry              | Data Transfer Out                                                | Image pull traffic (~2,000 GB/เดือน)                               |    2,000 |  $0.087/GB |               $174.00 |
-| Virtual Machines (Observability Node) | Standard_D2s_v5                                                  | 2 vCPU, 8 GB — dedicated node pool (HA + sharded Loki/Prometheus) |        4 |     $70.08 |               $280.32 |
-| Managed Disk (Premium SSD)            | Block Storage                                                    | Prometheus TSDB + Grafana DB (~2,000 GB)                          |    2,000 |  $0.135/GB |               $270.00 |
-| Azure Blob Storage                    | Centralized Logs / Traces / Metrics Retention (long-term policy) | Loki chunks + Jaeger traces (~5,000 GB)                           |    5,000 |  $0.018/GB |                $90.00 |
-|                                       |                                                                  |                                                                   |          |  **Total** | **≈ $864.32 / month** |
-
-### Cloud: Huawei Cloud (Huawei)
-
-#### Minimum
-
-> **เหตุผล**: ใช้ SWR เป็น registry กลางสำหรับ image และ Helm chart (รองรับ OCI) ขนาดเล็กตาม MVP; self-host observability stack ทั้งหมดบน ECS ขนาดเล็ก 1 ตัวเหมือนผู้ให้บริการรายอื่น เพราะ Huawei ก็ไม่มี managed Prometheus/Loki ในระบบนิเวศหลัก; ใช้ EVS (SSD) สำหรับ time-series data และ OBS สำหรับ log/trace retention พื้นฐาน — ตัวเลขราคาประมาณจาก spec เทียบเคียงเนื่องจาก Huawei เปิดเผยราคาต่อสาธารณะค่อนข้างจำกัด
-
-| Service                                   | Instance Name                                 | Specification                                                                    | Quantity | Unit Price |                      Total Price |
-| ----------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- | -------: | ---------: | -------------------------------: |
-| SoftWare Repository for Container (SWR)   | Container & Helm OCI Registry                 | Image/chart storage (~50 GB)                                                     |       50 |   $0.10/GB |                            $5.00 |
-| SoftWare Repository for Container (SWR)   | Data Transfer Out                             | Image pull traffic (~100 GB/เดือน)                                                |      100 |   $0.08/GB |                            $8.00 |
-| Elastic Cloud Server (Observability Node) | s6.xlarge.2                                   | 2 vCPU, 8 GB — รัน Prometheus + Grafana + Loki + OTel Collector + Jaeger + ArgoCD |        1 |     $65.00 |                           $65.00 |
-| Elastic Volume Service (SSD)              | Block Storage                                 | Prometheus TSDB + Grafana DB (~100 GB)                                           |      100 |   $0.10/GB |                           $10.00 |
-| Object Storage Service (OBS)              | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~200 GB)                                            |      200 |  $0.023/GB |                            $4.60 |
-|                                           |                                               |                                                                                  |          |  **Total** | **≈ $92.60 / month (estimated)** |
-
-#### Recommended and Scaling
-
-> **เหตุผล**: ปริมาณ image/chart และ traffic เพิ่มตามจำนวน environment ที่ใช้งานจริง; แยก observability workload เป็น dedicated node pool 2 ตัวเพื่อความเสถียรของ self-hosted stack; ขยาย EVS และ OBS รองรับ retention และ throughput ของ metrics/logs/traces จากหลาย microservices พร้อมกัน
-
-| Service                                   | Instance Name                                 | Specification                                                  | Quantity | Unit Price |                       Total Price |
-| ----------------------------------------- | --------------------------------------------- | -------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
-| SoftWare Repository for Container (SWR)   | Container & Helm OCI Registry                 | Image/chart storage (~200 GB)                                  |      200 |   $0.10/GB |                            $20.00 |
-| SoftWare Repository for Container (SWR)   | Data Transfer Out                             | Image pull traffic (~500 GB/เดือน)                              |      500 |   $0.08/GB |                            $40.00 |
-| Elastic Cloud Server (Observability Node) | s6.xlarge.2                                   | 2 vCPU, 8 GB — dedicated node pool สำหรับ observability + GitOps |        2 |     $65.00 |                           $130.00 |
-| Elastic Volume Service (SSD)              | Block Storage                                 | Prometheus TSDB + Grafana DB (~500 GB)                         |      500 |   $0.10/GB |                            $50.00 |
-| Object Storage Service (OBS)              | Centralized Logs / Traces / Metrics Retention | Loki chunks + Jaeger traces (~1,000 GB)                        |    1,000 |  $0.023/GB |                            $23.00 |
-|                                           |                                               |                                                                |          |  **Total** | **≈ $263.00 / month (estimated)** |
-
-#### Long-term
-
-> **เหตุผล**: ขยาย registry, traffic และ observability node pool (4 ตัว) เพื่อรองรับ scale ระดับ enterprise; ต้อง self-manage ทั้ง compute และ storage ของ observability stack เอง (ไม่มี managed equivalent) ต้นทุนจึงเติบโตตาม node และ volume เป็นหลัก — ตัวเลขราคาประมาณจาก spec เทียบเคียงเนื่องจาก Huawei เปิดเผยราคาต่อสาธารณะค่อนข้างจำกัด
-
-| Service                                   | Instance Name                                                    | Specification                                                     | Quantity | Unit Price |                       Total Price |
-| ----------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
-| SoftWare Repository for Container (SWR)   | Container & Helm OCI Registry                                    | Image/chart storage (~1,000 GB)                                   |    1,000 |   $0.10/GB |                           $100.00 |
-| SoftWare Repository for Container (SWR)   | Data Transfer Out                                                | Image pull traffic (~2,000 GB/เดือน)                               |    2,000 |   $0.08/GB |                           $160.00 |
-| Elastic Cloud Server (Observability Node) | s6.xlarge.2                                                      | 2 vCPU, 8 GB — dedicated node pool (HA + sharded Loki/Prometheus) |        4 |     $65.00 |                           $260.00 |
-| Elastic Volume Service (SSD)              | Block Storage                                                    | Prometheus TSDB + Grafana DB (~2,000 GB)                          |    2,000 |   $0.10/GB |                           $200.00 |
-| Object Storage Service (OBS)              | Centralized Logs / Traces / Metrics Retention (long-term policy) | Loki chunks + Jaeger traces (~5,000 GB)                           |    5,000 |  $0.023/GB |                           $115.00 |
-|                                           |                                                                  |                                                                   |          |  **Total** | **≈ $835.00 / month (estimated)** |
-
-> **หมายเหตุรวม**: ต้นทุน DevOps & Observability ข้างต้น **ไม่รวม** อยู่ใน Total ของตาราง infrastructure หลักในแต่ละ tier ด้านบน — เป็นต้นทุนเพิ่มเติมที่ควรนำไปบวกรวมเพื่อให้ได้ภาพรวมค่าใช้จ่ายทั้งหมดของระบบ ตัวอย่างเช่น AWS Minimum รวม infra (≈ $986.00) + Shared CI/CD (≈ $44.00) + DevOps/Observability เฉพาะ AWS (≈ $96.68) = **≈ $1,126.68 / เดือน**
