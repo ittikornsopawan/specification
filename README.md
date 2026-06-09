@@ -22,12 +22,12 @@ If you're interested in system architecture, preparing for system design intervi
 
 These designs represent **larger real-world platforms** where architecture decisions become more complex.
 
-| #   | System                        | What It Covers                                                 | Category          | Complexity | Link                                                                     |
-| --- | ----------------------------- | -------------------------------------------------------------- | ----------------- | ---------- | ------------------------------------------------------------------------ |
-| 1   | E-Commerce Platform           | Product catalog, shopping cart, checkout, and order management | Commerce Platform | High       | [Go](./)                                                                 |
-| 2   | E-Wallet Platform             | Wallet balances, top-ups, transfers, and transaction records   | FinTech           | High       | [Go](./Larger%20System/08_E-Wallet%20Platform/02-System-Architecture.md) |
-| 3   | Social Network Platform       | User graph, feeds, interactions, and content distribution      | Social Platform   | Very High  | Pending                                                                  |
-| 4   | Hiring & Recruitment Platform | Job postings, candidate pipeline, interview workflow, hiring   | HR Tech Platform  | Medium     | Pending                                                                  |
+| #   | System                        | What It Covers                                                 | Category          | Complexity | Link                                                     |
+| --- | ----------------------------- | -------------------------------------------------------------- | ----------------- | ---------- | -------------------------------------------------------- |
+| 1   | E-Commerce Platform           | Product catalog, shopping cart, checkout, and order management | Commerce Platform | High       | [Go](./01_e-commerce-platform/03-System-Architecture.md) |
+| 2   | E-Wallet Platform             | Wallet balances, top-ups, transfers, and transaction records   | FinTech           | High       | [Go](./02_e-wallet-platform/02-System-Architecture.md)   |
+| 3   | Social Network Platform       | User graph, feeds, interactions, and content distribution      | Social Platform   | Very High  | Pending                                                  |
+| 4   | Hiring & Recruitment Platform | Job postings, candidate pipeline, interview workflow, hiring   | HR Tech Platform  | Medium     | Pending                                                  |
 
 ## Prompt
 

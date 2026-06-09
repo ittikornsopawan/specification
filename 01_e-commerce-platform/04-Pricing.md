@@ -6,54 +6,62 @@ updated: 2026-06-08
 date: 2026-06-08
 ---
 
-# Pricing Exercise Solutions
+# Pricing Solutions
 
-> **สมมติฐานการประมาณราคา:** ราคาทั้งหมดเป็นราคาประมาณการแบบ on-demand (USD/เดือน) อ้างอิงจาก public pricing ของผู้ให้บริการแต่ละราย ภูมิภาค Asia Pacific (Singapore / Southeast Asia ใกล้เคียง) ณ กลางปี 2026 โดยคำนวณ 1 เดือน = 730 ชั่วโมง ตัวเลขจริงอาจแตกต่างตาม discount, reserved/savings plan, data transfer และ usage pattern จริง สำหรับ Huawei Cloud ซึ่งมีข้อมูลราคาเปิดเผยต่อสาธารณะค่อนข้างจำกัด ตัวเลขถูกประมาณจาก spec ที่เทียบเคียงได้กับผู้ให้บริการรายอื่นและรูปแบบราคาทั่วไปของภูมิภาค APAC
+> **สมมติฐานการประมาณราคา:** ราคาทั้งหมดเป็นราคาประมาณการแบบ on-demand (USD/เดือน) อ้างอิงจาก public pricing ของผู้ให้บริการแต่ละราย ภูมิภาค Asia Pacific (Singapore / Southeast Asia ใกล้เคียง) ณ กลางปี 2026 โดยคำนวณ
 >
-> สถาปัตยกรรมอ้างอิงจาก `03-System-Architecture.md` ซึ่งเลือกใช้ Kubernetes (managed), PostgreSQL (managed RDB), Redis (managed cache), OpenSearch/Elasticsearch (managed search), Kafka (managed streaming), Load Balancer, NAT Gateway, Object Storage และ Secrets/Key Management เป็นองค์ประกอบหลักของทุก tier
+> **1 เดือน = 730 ชั่วโมง**
+>
+> ตัวเลขจริงอาจแตกต่างตาม discount, reserved/savings plan, data transfer และ usage pattern จริง สำหรับ Huawei Cloud ซึ่งมีข้อมูลราคาเปิดเผยต่อสาธารณะค่อนข้างจำกัด ตัวเลขถูกประมาณจาก spec ที่เทียบเคียงได้กับผู้ให้บริการรายอื่นและรูปแบบราคาทั่วไปของภูมิภาค APAC
 
-## การจัดกลุ่ม Environment และผลต่อ Infrastructure (มุมมองเสริม)
+## Environment & Infrastructure
 
-`03-System-Architecture.md` กำหนด Environment Strategy ไว้ 5 environments คือ Development, SIT/QA, UAT, Staging และ Production ตารางหลักของเอกสารนี้ (ในแต่ละ Cloud × Tier ด้านบน) ยังคงยึดสมมติฐาน **"1 ชุด infra ต่อ tier"** คือไม่ปรับ quantity ตามจำนวน environment ส่วนนี้นำเสนอ**มุมมองเสริม**สำหรับกรณีที่ทีมต้องการแยกประเมิน/ขออนุมัติงบประมาณตามกลุ่ม environment โดยจัดกลุ่ม 5 environments ออกเป็น 3 pool ที่สามารถแชร์ resource กันได้บางส่วน เพื่อลดต้นทุนรวม:
+`03-System-Architecture.md` กำหนด 5 environments (Development, SIT/QA, UAT, Staging, Production) ตารางหลักของเอกสารนี้ยึดสมมติฐาน **"1 ชุด infra ต่อ tier"** ส่วนนี้นำเสนอมุมมองเสริมสำหรับกรณีที่ต้องการแยกงบประมาณตามกลุ่ม environment
 
-- **กลุ่ม Dev + SIT/QA (shared pool)** — งานพัฒนาและ integration testing เบื้องต้น traffic ต่ำ ใช้ namespace/pool ร่วมกันได้ และลดขนาด replica ลงได้มาก
-- **กลุ่ม UAT + Staging (shared pool)** — pre-production ต้อง mirror สถาปัตยกรรมของ production เพื่อทดสอบ acceptance ได้สมจริง แต่ traffic ยังต่ำกว่า production มาก จึงแชร์ pool เดียวกันได้
-- **กลุ่ม Production (dedicated)** — ต้องการ capacity, ความเสถียร และ HA เต็มรูปแบบ แยกเป็น pool เดี่ยวเสมอ ใช้ขนาดตามที่ตารางหลักของแต่ละ tier ออกแบบไว้ (multiplier ×1.0)
+### Environment Groups
 
-### ตารางสัดส่วนขนาด Infrastructure ตามกลุ่ม Environment (ใช้แนวทางเดียวกันได้ทุก cloud และทุก tier)
+| Environment Group | Environments          | Multiplier | หลักการ                                          |
+| ----------------- | --------------------- | ---------: | ----------------------------------------------- |
+| Dev + SIT/QA      | Development, SIT / QA |       ×0.3 | ขนาดเล็กสุด รองรับการพัฒนาและ integration test      |
+| UAT + Staging     | UAT, Staging          |       ×0.6 | topology ใกล้เคียง Production แต่ traffic น้อยกว่า   |
+| Production        | Production            |       ×1.0 | ขนาดเต็มตาม tier แยก dedicated                   |
+| **Total**         |                       |   **×1.9** | เทียบกับ ×5.0 หากแยกเต็มชุดทุก environment (~62% ลด) |
 
-| กลุ่ม Environment             | Environment ที่รวมอยู่    |                สัดส่วนขนาด Infra เทียบกับ "1 ชุด" (multiplier) | เหตุผล                                                                                                                                                                     |
-| --------------------------- | --------------------- | --------------------------------------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dev + SIT/QA (shared pool)  | Development, SIT / QA |                                                      ×0.3 | Traffic ต่ำ ใช้ replica/instance ขั้นต่ำสุด รองรับเฉพาะการ build/integrate/verify ฟีเจอร์ และสามารถ scale-down นอกเวลาทำงานได้                                                         |
-| UAT + Staging (shared pool) | UAT, Staging          |                                                      ×0.6 | ต้อง mirror topology ของ production เพื่อให้ผล acceptance test และ pre-prod validation น่าเชื่อถือ แต่ปริมาณ traffic และข้อมูลยังเล็กกว่า production มาก จึงแชร์ pool เดียวกันได้โดยไม่กระทบกัน |
-| Production (dedicated)      | Production            |                                                      ×1.0 | ใช้ capacity เต็มตามที่ตารางหลักของแต่ละ tier ระบุไว้ ไม่แชร์กับ environment อื่นเพื่อความเสถียรและความปลอดภัยของข้อมูลจริง                                                                   |
-| **รวม**                     |                       | **×1.9** (เทียบกับ ×5.0 ถ้าแยกทีละ environment โดยไม่แชร์กันเลย) | การจัดกลุ่มและแชร์ resource ช่วยลด footprint รวมได้ประมาณ **62%** เมื่อเทียบกับการสร้างชุด infra แยกอิสระทั้ง 5 environment                                                              |
+### Cost by Tier (AWS baseline)
 
-### ตัวอย่างการกระจายต้นทุนต่อ Tier (อ้างอิงยอดรวม Infrastructure หลักของ AWS เป็นฐาน)
+**Minimum** — Production only (baseline $986.00)
 
-นำยอดรวม "1 ชุด" ของแต่ละ tier (จากตาราง AWS ด้านบน ซึ่งเป็นยอดที่ใช้สมมติฐานเดิมไม่แยกตาม environment) มาคูณด้วย multiplier ของแต่ละกลุ่ม เพื่อประมาณว่าหากต้องแยกงบตามกลุ่ม environment จะมีสัดส่วนประมาณเท่าใด — *แนวทางเดียวกันนี้นำไปใช้กับยอดรวมของ GCP, Azure และ Huawei ในแต่ละ tier ได้เช่นกัน เพียงแทนค่ายอดรวม baseline ของ cloud นั้น ๆ*
+| Environment Group | Environments | Multiplier | Estimated Cost |
+| ----------------- | ------------ | ---------: | -------------: |
+| Production        | Production   |       ×1.0 |      ≈ $986.00 |
+| **Total**         |              |   **×1.0** |  **≈ $986.00** |
 
-| Tier                    | ยอดรวม "1 ชุด" (baseline, AWS) | Dev + SIT/QA (×0.3) | UAT + Staging (×0.6) | Production (×1.0) | รวมประมาณการ (×1.9) |
-| ----------------------- | ----------------------------: | ------------------: | -------------------: | ----------------: | ------------------: |
-| Minimum                 |                       $986.00 |           ≈ $295.80 |            ≈ $591.60 |         ≈ $986.00 |         ≈ $1,873.40 |
-| Recommended and Scaling |                     $3,244.82 |           ≈ $973.45 |          ≈ $1,946.89 |       ≈ $3,244.82 |         ≈ $6,165.16 |
-| Long-term               |                    $13,761.42 |         ≈ $4,128.43 |          ≈ $8,256.85 |      ≈ $13,761.42 |        ≈ $26,146.70 |
+**Recommended and Scaling** — Production + UAT/Staging (baseline $3,244.82)
 
-> **หมายเหตุ**: ตัวเลขในส่วนนี้เป็น**มุมมองเสริมเพื่อประกอบการวางแผนงบประมาณ**เท่านั้น ไม่ได้แทนที่หรือเปลี่ยนแปลงตารางหลักของแต่ละ Cloud × Tier ด้านบน ซึ่งยังคงยึดสมมติฐาน "1 ชุด infra ต่อ tier" ตามเดิม (ค่า ×1.9 ในที่นี้สูงกว่า ×1.0 ของตารางหลัก เพราะตารางหลักสมมติว่ามี shared pool เดียวรองรับทุก environment อยู่แล้ว ในขณะที่ตารางนี้แสดงให้เห็นว่าหากต้องแยก budget ตามกลุ่ม environment อย่างชัดเจน [เช่น เพื่อขออนุมัติงบเป็นรายกลุ่ม หรือแยก cost center] จะมีต้นทุนรวมเพิ่มขึ้นจาก baseline ประมาณ 90% แทนที่จะเพิ่มขึ้นถึง 400% หากแยกอิสระทั้ง 5 environment)
+| Environment Group | Environments             | Multiplier |  Estimated Cost |
+| ----------------- | ------------------------ | ---------: | --------------: |
+| UAT + Staging     | UAT, Staging             |       ×0.6 |     ≈ $1,946.89 |
+| Production        | Production               |       ×1.0 |     ≈ $3,244.82 |
+| **Total**         | UAT, Staging, Production |   **×1.6** | **≈ $5,191.71** |
+
+**Long-term** — All environments (baseline $13,761.42)
+
+| Environment Group | Environments          | Multiplier |   Estimated Cost |
+| ----------------- | --------------------- | ---------: | ---------------: |
+| Dev + SIT/QA      | Development, SIT / QA |       ×0.3 |      ≈ $4,128.43 |
+| UAT + Staging     | UAT, Staging          |       ×0.6 |      ≈ $8,256.85 |
+| Production        | Production            |       ×1.0 |     ≈ $13,761.42 |
+| **Total**         | All 5 environments    |   **×1.9** | **≈ $26,146.70** |
 
 ## Cloud: Amazon Web Services (AWS)
 
-AWS คือผู้ให้บริการหลักที่ระบุไว้ใน `03-System-Architecture.md` (ทุกองค์ประกอบมี service ตรงตัวให้เลือกใช้ครบ ทั้ง EKS, RDS, ElastiCache, OpenSearch, MSK, ALB, Secrets Manager) จึงเหมาะกับ**ทุก tier**โดยไม่ต้องดัดแปลงสถาปัตยกรรม:
+AWS คือผู้ให้บริการหลักที่ระบุไว้ใน `03-System-Architecture.md`:
 
 - **Minimum**: ตั้งต้นได้ทันทีด้วยบริการ managed ครบทุกตัวในขนาดเล็กสุด ไม่มี service ที่ต้อง self-manage จึงลดภาระทีม ops ตั้งแต่วันแรก
 - **Recommended and Scaling**: ฟีเจอร์ HA (RDS Multi-AZ, ElastiCache replica, OpenSearch multi-node) และ HPA บน EKS ตรงกับ "High Availability & Scalability" ที่ระบุไว้ในสถาปัตยกรรมพอดี ทำให้ scale ได้โดยไม่ต้องเปลี่ยนแพลตฟอร์ม
 - **Long-term**: รองรับ Multi-Region Replication, dedicated master node สำหรับ OpenSearch และ MSK ขนาดใหญ่ได้ในระบบนิเวศเดียวกัน ตรงกับแผน Disaster Recovery ที่วางไว้ และมี ecosystem (observability, IAM, IRSA) ที่ทีมเลือกไว้แล้วรองรับ scale ระดับองค์กร
 
 ### Minimum
-
-This section is used to estimate the minimum cloud infrastructure required to run the system.
-
-> **เหตุผล**: เลือก EKS 1 cluster กับ worker node `m6i.large` (2 vCPU/8 GB) 3 ตัว ซึ่งเพียงพอรองรับ ~13 microservices แบบ replica ต่ำ (1-2 ตัว/service) สำหรับ MVP/Pilot ที่ traffic ยังต่ำ; RDS และ ElastiCache ใช้ instance เล็กสุดแบบ Single-AZ เพื่อลดต้นทุน เพราะยังไม่ต้องการ SLA สูง; OpenSearch ใช้ 1 node และ MSK ใช้ broker ขั้นต่ำตามข้อกำหนดของ AWS (3 broker); ALB, NAT Gateway, S3 และ Secrets Manager กำหนดในปริมาณที่สอดคล้องกับขนาดระบบช่วงเริ่มต้นโครงการ
 
 | Service                       | Instance Name    | Specification                 | Quantity |   Unit Price |           Total Price |
 | ----------------------------- | ---------------- | ----------------------------- | -------: | -----------: | --------------------: |
@@ -69,7 +77,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | AWS Secrets Manager           | Secret           | ~25 secrets/keys              |       25 | $0.40/secret |                $10.00 |
 |                               |                  |                               |          |    **Total** | **≈ $986.00 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $986.00 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                           |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ---------------------------------------------------------------------------------- |
@@ -79,7 +87,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                         | Instance Name         | Specification                                                         | Quantity | Unit Price |          Total Price |
 | ------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------: |
@@ -88,7 +96,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Amazon S3                       | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.023/GB |                $4.60 |
 |                                 |                       |                                                                       |          |  **Total** | **≈ $82.68 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (AWS native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (AWS)**
 
 | Service                               | Instance Name        | Specification                                        | Quantity | Unit Price |           Total Price |
 | ------------------------------------- | -------------------- | ---------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -98,11 +106,8 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Amazon CloudWatch Logs                | Log Aggregation      | Centralized application logs ปริมาณเล็ก                |        1 |     $50.00 |                $50.00 |
 | AWS X-Ray                             | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ            |        1 |     $10.00 |                $10.00 |
 |                                       |                      |                                                      |          |  **Total** | **≈ $180.00 / month** |
+
 ### Recommended and Scaling
-
-This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
-
-> **เหตุผล**: อัปเกรด worker node เป็น `m6i.xlarge` (4 vCPU/16 GB) และเพิ่มเป็น 6 ตัว เพื่อรองรับ traffic ระดับ production จริงและให้ HPA มี headroom สำหรับ scale-out; เปลี่ยน RDS และ ElastiCache เป็น Multi-AZ พร้อม read replica ตามที่ระบุไว้ใน "Database Replication" ของสถาปัตยกรรม (RDS Multi-AZ Replication + Read Replica) เพื่อเพิ่ม availability และกระจาย read load; ขยาย OpenSearch เป็น 3-node cluster และอัปเกรด MSK broker เป็น `kafka.m5.xlarge` เพื่อรองรับปริมาณการค้นหาสินค้าและ event stream ที่มากขึ้น; เพิ่ม NAT Gateway เป็น Multi-AZ (2 ตัว) ตามข้อกำหนด High Availability และเพิ่มปริมาณ storage/secret ตามจำนวน environment ที่มากขึ้น
 
 | Service                       | Instance Name    | Specification                          | Quantity |   Unit Price |             Total Price |
 | ----------------------------- | ---------------- | -------------------------------------- | -------: | -----------: | ----------------------: |
@@ -118,7 +123,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | AWS Secrets Manager           | Secret           | ~60 secrets/keys                       |       60 | $0.40/secret |                  $24.00 |
 |                               |                  |                                        |          |    **Total** | **≈ $3,244.82 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $3,244.82 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ------------------------------------------------------------------------------------ |
@@ -128,7 +133,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                         | Instance Name         | Specification                                                         | Quantity | Unit Price |           Total Price |
 | ------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -137,7 +142,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Amazon S3                       | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.023/GB |                $23.00 |
 |                                 |                       |                                                                       |          |  **Total** | **≈ $109.08 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (AWS native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (AWS)**
 
 | Service                               | Instance Name        | Specification                                                 | Quantity | Unit Price |           Total Price |
 | ------------------------------------- | -------------------- | ------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -147,11 +152,8 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Amazon CloudWatch Logs                | Log Aggregation      | Centralized application logs ปริมาณกลาง                        |        1 |     $50.00 |                $50.00 |
 | AWS X-Ray                             | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ                     |        1 |     $10.00 |                $10.00 |
 |                                       |                      |                                                               |          |  **Total** | **≈ $180.00 / month** |
+
 ### Long-term
-
-This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
-
-> **เหตุผล**: แยก EKS cluster เป็น Production + Staging (2 cluster) และอัปเกรด worker node เป็น `m6i.2xlarge` (8 vCPU/32 GB) จำนวน 12 ตัวในหลาย node-group เพื่อรองรับ microservices ใหม่และ traffic spike ช่วง campaign/sale; เพิ่ม RDS read replica อีกชั้น (รวม 3 instance) และทำ ElastiCache เป็น sharded cluster (6 node) เพื่อกระจาย load และลด latency; ขยาย OpenSearch เป็น dedicated master 3 + data node 6 ตามแนวทาง production cluster ขนาดใหญ่ (ป้องกัน split-brain) และขยาย MSK เป็น 6 broker เพื่อรองรับปริมาณ event/message ที่เพิ่มตามจำนวน order/transaction; เพิ่ม ALB และ NAT Gateway แบบ multi-region ตามที่ระบุใน Disaster Recovery (Multi-Region Replication) พร้อมขยาย S3 และ Secrets Manager ให้รองรับ environment และ service ที่มากขึ้น
 
 | Service                       | Instance Name                  | Specification                                | Quantity |   Unit Price |              Total Price |
 | ----------------------------- | ------------------------------ | -------------------------------------------- | -------: | -----------: | -----------------------: |
@@ -167,7 +169,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | AWS Secrets Manager           | Secret                         | ~150 secrets/keys                            |      150 | $0.40/secret |                   $60.00 |
 |                               |                                |                                              |          |    **Total** | **≈ $13,761.42 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $13,761.42 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ------------------------------------------------------------------------------------ |
@@ -177,7 +179,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                         | Instance Name         | Specification                                                               | Quantity | Unit Price |           Total Price |
 | ------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -186,7 +188,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Amazon S3                       | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.023/GB |               $115.00 |
 |                                 |                       |                                                                             |          |  **Total** | **≈ $295.16 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (AWS native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (AWS)**
 
 | Service                               | Instance Name        | Specification                                          | Quantity | Unit Price |           Total Price |
 | ------------------------------------- | -------------------- | ------------------------------------------------------ | -------: | ---------: | --------------------: |
@@ -196,6 +198,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Amazon CloudWatch Logs                | Log Aggregation      | Centralized logs และ query ระยะยาว                     |        1 |    $250.00 |               $250.00 |
 | AWS X-Ray                             | Distributed Tracing  | Production tracing สำหรับ request ปริมาณสูง                |        1 |     $50.00 |                $50.00 |
 |                                       |                      |                                                        |          |  **Total** | **≈ $785.00 / month** |
+
 ## Cloud: Google Cloud Platform (GCP)
 
 GCP เหมาะกับทีมที่เน้น Kubernetes-native และต้นทุนคุ้มค่าต่อ compute (GKE และ Compute Engine ราคาแข่งขันได้):
@@ -205,10 +208,6 @@ GCP เหมาะกับทีมที่เน้น Kubernetes-native แ
 - **Long-term**: ข้อจำกัดคือไม่มี managed OpenSearch/Kafka ของตัวเอง ทำให้ทีมต้องดูแล cluster เหล่านี้เองในระดับใหญ่ขึ้น จึงเหมาะกับองค์กรที่มีทีม SRE/Platform แข็งแรงพอจะรับภาระ self-managed service ที่ scale ขึ้น
 
 ### Minimum
-
-This section is used to estimate the minimum cloud infrastructure required to run the system.
-
-> **เหตุผล**: ใช้ GKE Standard mode 1 cluster กับ `e2-standard-2` (2 vCPU/8 GB) 3 ตัว เทียบเท่าขนาด AWS Minimum เพื่อรองรับ ~13 microservices แบบ replica ต่ำ; Cloud SQL และ Memorystore เลือก tier เล็กสุดแบบ single-zone/Basic เพราะยังไม่ต้องการ HA; เนื่องจาก GCP ไม่มี managed OpenSearch/Kafka โดยตรง จึงประมาณการเป็น self-managed บน Compute Engine ขนาดเล็กที่สุด (1 node สำหรับ search, 3 broker ขั้นต่ำสำหรับ Kafka); Load Balancing, Cloud NAT, Storage และ Secret Manager กำหนดในปริมาณที่สอดคล้องกับขนาดระบบช่วงเริ่มต้น
 
 | Service                                     | Instance Name         | Specification                          | Quantity |    Unit Price |           Total Price |
 | ------------------------------------------- | --------------------- | -------------------------------------- | -------: | ------------: | --------------------: |
@@ -224,7 +223,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Secret Manager                              | Active secret version | ~25 secrets/month                      |       25 | $0.06/version |                 $1.50 |
 |                                             |                       |                                        |          |     **Total** | **≈ $667.94 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $667.94 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                           |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ---------------------------------------------------------------------------------- |
@@ -234,7 +233,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                             | Instance Name         | Specification                                                         | Quantity | Unit Price |          Total Price |
 | ----------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------: |
@@ -243,7 +242,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Cloud Storage                       | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.020/GB |                $4.00 |
 |                                     |                       |                                                                       |          |  **Total** | **≈ $69.92 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (GCP native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (GCP)**
 
 | Service                                     | Instance Name        | Specification                                                   | Quantity | Unit Price |          Total Price |
 | ------------------------------------------- | -------------------- | --------------------------------------------------------------- | -------: | ---------: | -------------------: |
@@ -253,11 +252,8 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Cloud Logging                               | Log Aggregation      | Centralized application logs                                    |        1 |     $50.00 |               $50.00 |
 | Cloud Trace                                 | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ                       |        1 |      $5.00 |                $5.00 |
 |                                             |                      |                                                                 |          |  **Total** | **≈ $75.00 / month** |
+
 ### Recommended and Scaling
-
-This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
-
-> **เหตุผล**: อัปเกรด worker node เป็น `n2-standard-4` (4 vCPU/16 GB) จำนวน 6 ตัว เพื่อรองรับ traffic ระดับ production และให้ HPA มี headroom; เปลี่ยน Cloud SQL เป็น Regional (HA) และ Memorystore เป็น Standard Tier (HA) พร้อม replica เทียบเท่าการทำ Multi-AZ ของ AWS เพื่อเพิ่ม availability และกระจาย read load; ขยาย self-managed Elasticsearch/Kafka บน `n2-standard-4` เป็น cluster 3 โหนดเพื่อรองรับปริมาณการค้นหาและ event stream ที่มากขึ้น; เพิ่ม Cloud NAT เป็น multi-zone (2 ตัว) ตามข้อกำหนด HA และเพิ่มปริมาณ storage/secret ตามจำนวน environment ที่มากขึ้น
 
 | Service                                     | Instance Name         | Specification                          | Quantity |    Unit Price |             Total Price |
 | ------------------------------------------- | --------------------- | -------------------------------------- | -------: | ------------: | ----------------------: |
@@ -273,7 +269,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Secret Manager                              | Active secret version | ~60 secrets/month                      |       60 | $0.06/version |                   $3.60 |
 |                                             |                       |                                        |          |     **Total** | **≈ $3,128.52 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $3,128.52 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ------------------------------------------------------------------------------------ |
@@ -283,7 +279,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                             | Instance Name         | Specification                                                         | Quantity | Unit Price |           Total Price |
 | ----------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -292,7 +288,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Cloud Storage                       | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.020/GB |                $20.00 |
 |                                     |                       |                                                                       |          |  **Total** | **≈ $102.92 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (GCP native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (GCP)**
 
 | Service                                     | Instance Name        | Specification                                                 | Quantity | Unit Price |           Total Price |
 | ------------------------------------------- | -------------------- | ------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -303,10 +299,6 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Cloud Trace                                 | Distributed Tracing  | Distributed tracing สำหรับ request flow สำคัญ                     |        1 |     $10.00 |                $10.00 |
 |                                             |                      |                                                               |          |  **Total** | **≈ $135.00 / month** |
 ### Long-term
-
-This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
-
-> **เหตุผล**: แยก GKE cluster เป็น Production + Staging (2 cluster) และอัปเกรด worker node เป็น `n2-standard-8` (8 vCPU/32 GB) จำนวน 12 ตัวในหลาย node-pool เพื่อรองรับการเติบโตของ microservices และ traffic spike; เพิ่ม Cloud SQL read replica (รวม 3 instance) และทำ Memorystore เป็น HA cluster ขนาด 20 GB (2 ชุด) เพื่อกระจาย load และลด latency; ขยาย self-managed Elasticsearch/Kafka เป็น cluster 6 โหนดบน `n2-standard-8` เพื่อรองรับปริมาณ search/event ที่เพิ่มขึ้นมาก; เพิ่ม Cloud Load Balancing และ Cloud NAT แบบ multi-region ตามแนวทาง DR และขยาย storage/secret ให้รองรับ environment และ service ที่มากขึ้น
 
 | Service                                     | Instance Name              | Specification                                 | Quantity |    Unit Price |              Total Price |
 | ------------------------------------------- | -------------------------- | --------------------------------------------- | -------: | ------------: | -----------------------: |
@@ -322,7 +314,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Secret Manager                              | Active secret version      | ~150 secrets/month                            |      150 | $0.06/version |                    $9.00 |
 |                                             |                            |                                               |          |     **Total** | **≈ $11,762.68 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $11,762.68 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ------------------------------------------------------------------------------------ |
@@ -332,7 +324,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                             | Instance Name         | Specification                                                               | Quantity | Unit Price |           Total Price |
 | ----------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -341,7 +333,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Cloud Storage                       | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.020/GB |               $100.00 |
 |                                     |                       |                                                                             |          |  **Total** | **≈ $349.16 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (GCP native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (GCP)**
 
 | Service                                     | Instance Name        | Specification                                          | Quantity | Unit Price |           Total Price |
 | ------------------------------------------- | -------------------- | ------------------------------------------------------ | -------: | ---------: | --------------------: |
@@ -351,6 +343,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Cloud Logging                               | Log Aggregation      | Centralized logs พร้อม long-term sink                   |        1 |    $250.00 |               $250.00 |
 | Cloud Trace                                 | Distributed Tracing  | Production tracing สำหรับ request ปริมาณสูง                |        1 |     $50.00 |                $50.00 |
 |                                             |                      |                                                        |          |  **Total** | **≈ $650.00 / month** |
+
 ## Cloud: Microsoft Azure (Azure)
 
 Azure เหมาะกับองค์กรที่มี ecosystem ของ Microsoft อยู่แล้ว (Active Directory, .NET, Office 365) และต้องการ integration ที่ราบรื่น:
@@ -360,10 +353,6 @@ Azure เหมาะกับองค์กรที่มี ecosystem ขอ
 - **Long-term**: เช่นเดียวกับ GCP คือไม่มี managed search/streaming ของตัวเอง ต้อง self-manage บน VM แต่ Azure มีจุดแข็งด้าน compliance, hybrid cloud (Azure Arc) และ regional presence ที่กว้าง เหมาะกับองค์กรที่ต้องขยายตลาดในหลายภูมิภาคพร้อม regulatory requirement ที่เข้มงวด
 
 ### Minimum
-
-This section is used to estimate the minimum cloud infrastructure required to run the system.
-
-> **เหตุผล**: ใช้ AKS Standard tier (Uptime SLA) 1 cluster กับ `Standard_D2s_v5` (2 vCPU/8 GB) 3 ตัว ระดับเทียบเท่า AWS/GCP Minimum เพื่อรองรับ ~13 microservices แบบ replica ต่ำ; Azure Database for PostgreSQL ใช้ Burstable B2s และ Azure Cache for Redis ใช้ Basic C1 ซึ่งเป็น tier เล็กสุดแบบ single-zone/no-HA เพื่อลดต้นทุน; เนื่องจาก Azure ไม่มี managed OpenSearch/Kafka โดยตรง จึงประมาณการเป็น self-managed บน VM ขนาดเล็กที่สุด (1 node สำหรับ search, 3 broker ขั้นต่ำสำหรับ Kafka); Load Balancer, NAT Gateway, Blob Storage และ Key Vault กำหนดในปริมาณที่สอดคล้องกับขนาดระบบช่วงเริ่มต้น
 
 | Service                                       | Instance Name       | Specification                        | Quantity |    Unit Price |           Total Price |
 | --------------------------------------------- | ------------------- | ------------------------------------ | -------: | ------------: | --------------------: |
@@ -379,7 +368,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Azure Key Vault                               | Operations          | ~100,000 ops/month (10× 10k-batches) |       10 | $0.03/10k ops |                 $0.30 |
 |                                               |                     |                                      |          |     **Total** | **≈ $720.31 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $720.31 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                           |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ---------------------------------------------------------------------------------- |
@@ -389,7 +378,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                               | Instance Name         | Specification                                                         | Quantity | Unit Price |          Total Price |
 | ------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------: |
@@ -398,7 +387,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Azure Blob Storage                    | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.018/GB |                $3.60 |
 |                                       |                       |                                                                       |          |  **Total** | **≈ $87.18 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (Azure native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (Azure)**
 
 | Service                                      | Instance Name             | Specification                                        | Quantity | Unit Price |           Total Price |
 | -------------------------------------------- | ------------------------- | ---------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -409,10 +398,6 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Application Insights                         | Distributed Tracing / APM | Distributed tracing และ APM สำหรับ request flow สำคัญ    |        1 |     $10.00 |                $10.00 |
 |                                              |                           |                                                      |          |  **Total** | **≈ $184.00 / month** |
 ### Recommended and Scaling
-
-This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
-
-> **เหตุผล**: อัปเกรด VM เป็น `Standard_D4s_v5` (4 vCPU/16 GB) จำนวน 6 ตัว เพื่อรองรับ traffic ระดับ production และให้ HPA มี headroom; เปลี่ยน Azure Database for PostgreSQL เป็น Flexible Server (General Purpose) แบบ Zone-Redundant HA และ Azure Cache for Redis เป็น Standard C2 พร้อม replica เทียบเท่าการทำ Multi-AZ ของ AWS เพื่อเพิ่ม availability และกระจาย read load; ขยาย self-managed Elasticsearch/Kafka บน `Standard_D4s_v5` เป็น cluster 3 โหนด เพื่อรองรับปริมาณการค้นหาและ event stream ที่มากขึ้น; เพิ่ม Azure NAT Gateway เป็น multi-zone (2 ตัว) ตามข้อกำหนด HA และเพิ่มปริมาณ storage/key vault operations ตามจำนวน environment ที่มากขึ้น
 
 | Service                                       | Instance Name                  | Specification                        | Quantity |    Unit Price |             Total Price |
 | --------------------------------------------- | ------------------------------ | ------------------------------------ | -------: | ------------: | ----------------------: |
@@ -428,7 +413,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Azure Key Vault                               | Operations                     | ~300,000 ops/month (30× 10k-batches) |       30 | $0.03/10k ops |                   $0.90 |
 |                                               |                                |                                      |          |     **Total** | **≈ $2,847.52 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $2,847.52 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ------------------------------------------------------------------------------------ |
@@ -438,7 +423,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                               | Instance Name         | Specification                                                         | Quantity | Unit Price |           Total Price |
 | ------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -447,7 +432,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Azure Blob Storage                    | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.018/GB |                $18.00 |
 |                                       |                       |                                                                       |          |  **Total** | **≈ $115.08 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (Azure native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (Azure)**
 
 | Service                                      | Instance Name             | Specification                                                 | Quantity | Unit Price |           Total Price |
 | -------------------------------------------- | ------------------------- | ------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -458,10 +443,6 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Application Insights                         | Distributed Tracing / APM | Distributed tracing และ APM สำหรับ request flow สำคัญ             |        1 |     $10.00 |                $10.00 |
 |                                              |                           |                                                               |          |  **Total** | **≈ $184.00 / month** |
 ### Long-term
-
-This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
-
-> **เหตุผล**: แยก AKS cluster เป็น Production + Staging (2 cluster) และอัปเกรด VM เป็น `Standard_D8s_v5` (8 vCPU/32 GB) จำนวน 12 ตัวในหลาย node-pool เพื่อรองรับ microservices ใหม่และ traffic spike; เพิ่ม Azure Database for PostgreSQL เป็น Memory Optimized แบบ HA + Read Replica (3 instance) และ Azure Cache for Redis เป็น Premium P2 แบบ cluster (4 ชุด) เพื่อกระจาย load และลด latency; ขยาย self-managed Elasticsearch/Kafka เป็น cluster 6 โหนดบน `Standard_D8s_v5` เพื่อรองรับปริมาณ search/event ที่เพิ่มขึ้นมาก; เพิ่ม Azure Load Balancer และ NAT Gateway แบบ multi-region ตามแนวทาง DR และขยาย storage/key vault operations ให้รองรับ environment และ service ที่มากขึ้น
 
 | Service                                       | Instance Name                    | Specification                        | Quantity |    Unit Price |              Total Price |
 | --------------------------------------------- | -------------------------------- | ------------------------------------ | -------: | ------------: | -----------------------: |
@@ -477,7 +458,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Azure Key Vault                               | Operations                       | ~800,000 ops/month (80× 10k-batches) |       80 | $0.03/10k ops |                    $2.40 |
 |                                               |                                  |                                      |          |     **Total** | **≈ $12,127.48 / month** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $12,127.48 ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) | ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ------------: | ------------------------------------------------------------------------------------ |
@@ -487,7 +468,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                               | Instance Name         | Specification                                                               | Quantity | Unit Price |           Total Price |
 | ------------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------: |
@@ -496,7 +477,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Azure Blob Storage                    | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.018/GB |                $90.00 |
 |                                       |                       |                                                                             |          |  **Total** | **≈ $297.66 / month** |
 
-**ตัวเลือก B — Cloud Managed Services (Azure native)** _(เหมาะกับทีมที่ต้องการ fully managed ไม่รับภาระ ops ของ observability stack — SLA ครบถ้วน และ native integration กับ cloud provider แต่ต้นทุนสูงกว่า self-hosted)_
+**ตัวเลือก B — Cloud Managed (Azure)**
 
 | Service                                      | Instance Name             | Specification                                          | Quantity | Unit Price |           Total Price |
 | -------------------------------------------- | ------------------------- | ------------------------------------------------------ | -------: | ---------: | --------------------: |
@@ -506,6 +487,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Azure Monitor Logs / Log Analytics           | Log Aggregation           | Centralized logs และ query ระยะยาว                     |        1 |    $250.00 |               $250.00 |
 | Application Insights                         | Distributed Tracing / APM | Production tracing และ APM สำหรับ request ปริมาณสูง        |        1 |     $50.00 |                $50.00 |
 |                                              |                           |                                                        |          |  **Total** | **≈ $749.00 / month** |
+
 ## Cloud: Huawei Cloud (Huawei)
 
 Huawei เหมาะกับธุรกิจที่ต้องการขยายตลาดในจีนแผ่นดินใหญ่และเอเชียตะวันออกเฉียงใต้ ซึ่งมี data center ในภูมิภาคและราคาที่แข่งขันได้:
@@ -515,10 +497,6 @@ Huawei เหมาะกับธุรกิจที่ต้องการ�
 - **Long-term**: เหมาะกับธุรกิจที่ traffic หลักอยู่ในภูมิภาคที่ Huawei มี presence แข็งแรง (เช่น จีน, เอเชียตะวันออกเฉียงใต้) เพราะ latency ต่ำกว่าและมักมีข้อได้เปรียบด้าน data residency/compliance ในประเทศนั้น ๆ แต่ควรพิจารณาเรื่องความพร้อมของข้อมูลราคาและเอกสารภาษาอังกฤษที่ยังจำกัดกว่า 3 รายข้างต้น
 
 ### Minimum
-
-This section is used to estimate the minimum cloud infrastructure required to run the system.
-
-> **เหตุผล**: ใช้ CCE 1 cluster กับ ECS `s6.xlarge.2` (2 vCPU/8 GB) 3 ตัว เทียบเท่าขนาด AWS/GCP/Azure Minimum เพื่อรองรับ ~13 microservices แบบ replica ต่ำ; RDS for PostgreSQL และ DCS for Redis เลือก spec เล็กสุดแบบ single-AZ/single-node เพราะยังไม่ต้องการ HA; CSS (Elasticsearch) ใช้ 1 node และ DMS (Kafka) ใช้ broker ขั้นต่ำตามมาตรฐานอุตสาหกรรม (3 broker); ELB, NAT Gateway, OBS และ Secret Management กำหนดในปริมาณที่สอดคล้องกับขนาดระบบช่วงเริ่มต้น โดยตัวเลขราคาประมาณจาก spec ที่เทียบเคียงได้กับผู้ให้บริการรายอื่นในภูมิภาค APAC เนื่องจาก Huawei เปิดเผยราคาต่อสาธารณะค่อนข้างจำกัด
 
 | Service                                     | Instance Name    | Specification                   | Quantity |   Unit Price |                       Total Price |
 | ------------------------------------------- | ---------------- | ------------------------------- | -------: | -----------: | --------------------------------: |
@@ -534,7 +512,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Key Management / Secret Management Service  | Secret           | ~25 secrets/keys                |       25 | $0.40/secret |                            $10.00 |
 |                                             |                  |                                 |          |    **Total** | **≈ $899.60 / month (estimated)** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $899.60 (estimated) ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) |           ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                           |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ----------------------: | ---------------------------------------------------------------------------------- |
@@ -544,7 +522,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                                   | Instance Name         | Specification                                                         | Quantity | Unit Price |                      Total Price |
 | ----------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | -------------------------------: |
@@ -553,7 +531,7 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Object Storage Service (OBS)              | Log & Trace Retention | Loki chunks, trace retention (~200 GB)                                |      200 |  $0.023/GB |                            $4.60 |
 |                                           |                       |                                                                       |          |  **Total** | **≈ $77.60 / month (estimated)** |
 
-**ตัวเลือก B — Cloud Managed Services (Huawei native)** _(เหมาะกับทีมที่ต้องการลด ops burden — อย่างไรก็ตาม Huawei Cloud ยังไม่มี managed Prometheus หรือ managed Grafana โดยตรง จึงใช้ Cloud Eye + AOM แทน metrics/dashboard และ APM แทน Jaeger)_
+**ตัวเลือก B — Cloud Managed (Huawei)** _(ไม่มี managed Prometheus/Grafana — ใช้ Cloud Eye + AOM แทน metrics/dashboard, APM แทน Jaeger)_
 
 | Service                                  | Instance Name                   | Specification                                                             | Quantity | Unit Price |                       Total Price |
 | ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
@@ -563,11 +541,8 @@ This section is used to estimate the minimum cloud infrastructure required to ru
 | Log Tank Service (LTS)                   | Log Aggregation                 | Centralized application logs (แทน Loki)                                   |        1 |     $30.00 |                            $30.00 |
 | Application Performance Management (APM) | Distributed Tracing             | Distributed tracing สำหรับ request flow (แทน Jaeger)                        |        1 |     $30.00 |                            $30.00 |
 |                                          |                                 |                                                                           |          |  **Total** | **≈ $120.00 / month (estimated)** |
+
 ### Recommended and Scaling
-
-This section is used to estimate the recommended cloud infrastructure when the system needs better performance, reliability, and room for scaling.
-
-> **เหตุผล**: อัปเกรด ECS เป็น `s6.2xlarge.2` (4 vCPU/16 GB) จำนวน 6 ตัว เพื่อรองรับ traffic ระดับ production และให้ HPA มี headroom; เปลี่ยน RDS for PostgreSQL เป็น HA pair (active/standby) และ DCS for Redis เป็น Master/Standby พร้อม replica เทียบเท่าการทำ Multi-AZ ของ AWS เพื่อเพิ่ม availability และกระจาย read load; ขยาย CSS เป็น 3-node cluster และอัปเกรด DMS broker เป็น 4 vCPU/16 GB เพื่อรองรับปริมาณการค้นหาสินค้าและ event stream ที่มากขึ้น; เพิ่ม NAT Gateway เป็น Multi-AZ (2 ตัว) ตามข้อกำหนด HA และเพิ่มปริมาณ OBS storage/secret ตามจำนวน environment ที่มากขึ้น
 
 | Service                                     | Instance Name    | Specification                       | Quantity |   Unit Price |                         Total Price |
 | ------------------------------------------- | ---------------- | ----------------------------------- | -------: | -----------: | ----------------------------------: |
@@ -583,7 +558,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Key Management / Secret Management Service  | Secret           | ~60 secrets/keys                    |       60 | $0.40/secret |                              $24.00 |
 |                                             |                  |                                     |          |    **Total** | **≈ $3,025.00 / month (estimated)** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $3,025.00 (estimated) ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) |           ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | ----------------------: | ------------------------------------------------------------------------------------ |
@@ -593,7 +568,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                                   | Instance Name         | Specification                                                         | Quantity | Unit Price |                       Total Price |
 | ----------------------------------------- | --------------------- | --------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
@@ -602,7 +577,7 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Object Storage Service (OBS)              | Log & Trace Retention | Loki chunks, trace retention (~1,000 GB)                              |    1,000 |  $0.023/GB |                            $23.00 |
 |                                           |                       |                                                                       |          |  **Total** | **≈ $104.00 / month (estimated)** |
 
-**ตัวเลือก B — Cloud Managed Services (Huawei native)** _(เหมาะกับทีมที่ต้องการลด ops burden — อย่างไรก็ตาม Huawei Cloud ยังไม่มี managed Prometheus หรือ managed Grafana โดยตรง จึงใช้ Cloud Eye + AOM แทน metrics/dashboard และ APM แทน Jaeger)_
+**ตัวเลือก B — Cloud Managed (Huawei)** _(ไม่มี managed Prometheus/Grafana — ใช้ Cloud Eye + AOM แทน metrics/dashboard, APM แทน Jaeger)_
 
 | Service                                  | Instance Name                   | Specification                                                             | Quantity | Unit Price |                       Total Price |
 | ---------------------------------------- | ------------------------------- | ------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
@@ -612,11 +587,8 @@ This section is used to estimate the recommended cloud infrastructure when the s
 | Log Tank Service (LTS)                   | Log Aggregation                 | Centralized application logs ปริมาณกลาง (แทน Loki)                         |        1 |    $100.00 |                           $100.00 |
 | Application Performance Management (APM) | Distributed Tracing             | Distributed tracing สำหรับ request flow สำคัญ (แทน Jaeger)                    |        1 |     $50.00 |                            $50.00 |
 |                                          |                                 |                                                                           |          |  **Total** | **≈ $250.00 / month (estimated)** |
+
 ### Long-term
-
-This section is used to estimate the long-term cloud infrastructure when the platform becomes larger and needs stronger scalability, availability, monitoring, and operational support.
-
-> **เหตุผล**: แยก CCE cluster เป็น Production + Staging (2 cluster) และอัปเกรด ECS เป็น `c6.4xlarge.2` (8 vCPU/32 GB) จำนวน 12 ตัวในหลาย node-pool เพื่อรองรับ microservices ใหม่และ traffic spike; เพิ่ม RDS เป็น HA + Read Replica (3 instance) และทำ DCS for Redis เป็น cluster ขนาด 16 GB (4 ชุด) เพื่อกระจาย load และลด latency; ขยาย CSS เป็น cluster 6 โหนดและ DMS เป็น 6 broker เพื่อรองรับปริมาณ search/event/transaction ที่เพิ่มขึ้นมาก; เพิ่ม ELB และ NAT Gateway แบบ multi-region ตามแนวทาง DR และขยาย OBS storage/secret ให้รองรับ environment และ service ที่มากขึ้น
 
 | Service                                     | Instance Name         | Specification                                          | Quantity |   Unit Price |                          Total Price |
 | ------------------------------------------- | --------------------- | ------------------------------------------------------ | -------: | -----------: | -----------------------------------: |
@@ -632,7 +604,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Key Management / Secret Management Service  | Secret                | ~150 secrets/keys                                      |      150 | $0.40/secret |                               $60.00 |
 |                                             |                       |                                                        |          |    **Total** | **≈ $12,720.00 / month (estimated)** |
 
-**Environment ที่รวมอยู่ในประมาณการนี้** _(อ้างอิงสัดส่วนจากหัวข้อ "การจัดกลุ่ม Environment และผลต่อ Infrastructure" ด้านล่าง — ตัวเลข ≈ $12,720.00 (estimated) ในตารางข้างต้น คือยอด "1 ชุด" แบบ pooled ที่รองรับทุก environment ร่วมกันอยู่แล้ว ตารางนี้แตกให้เห็นว่าหากแยก infra ตามกลุ่ม environment จะมีต้นทุนและสัดส่วนอย่างไร และจะเปลี่ยนแปลงเท่าใดหากตัดบางกลุ่มออก)_
+**Environment Breakdown** _(ราคา "1 ชุด" ด้านบน × multiplier — ดู §Environment & Infrastructure)_
 
 | ขอบเขต Environment                                     | Environment ที่รวมอยู่                            | สัดส่วน (multiplier) |            ราคาประมาณการ | เปลี่ยนแปลงจากขอบเขตก่อนหน้า                                                             |
 | ------------------------------------------------------ | --------------------------------------------- | -----------------: | -----------------------: | ------------------------------------------------------------------------------------ |
@@ -642,7 +614,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 
 #### OpenTelemetry
 
-**ตัวเลือก A — Self-hosted (open-source stack)** _(เหมาะกับทีมที่มี DevOps/SRE skill และต้องการ full control หรือ cost efficiency สูงสุด — ไม่มีค่า license เพิ่มเติม แต่ต้องดูแล stack เอง: upgrade, backup, HA)_
+**ตัวเลือก A — Self-hosted** _(OTel Collector + Prometheus + Grafana + Loki + Jaeger)_
 
 | Service                                   | Instance Name         | Specification                                                               | Quantity | Unit Price |                       Total Price |
 | ----------------------------------------- | --------------------- | --------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
@@ -651,7 +623,7 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Object Storage Service (OBS)              | Log & Trace Retention | Loki chunks, trace retention (~5,000 GB)                                    |    5,000 |  $0.023/GB |                           $115.00 |
 |                                           |                       |                                                                             |          |  **Total** | **≈ $280.00 / month (estimated)** |
 
-**ตัวเลือก B — Cloud Managed Services (Huawei native)** _(เหมาะกับทีมที่ต้องการลด ops burden — อย่างไรก็ตาม Huawei Cloud ยังไม่มี managed Prometheus หรือ managed Grafana โดยตรง จึงใช้ Cloud Eye + AOM แทน metrics/dashboard และ APM แทน Jaeger)_
+**ตัวเลือก B — Cloud Managed (Huawei)** _(ไม่มี managed Prometheus/Grafana — ใช้ Cloud Eye + AOM แทน metrics/dashboard, APM แทน Jaeger)_
 
 | Service                                  | Instance Name                   | Specification                                                                             | Quantity | Unit Price |                       Total Price |
 | ---------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------- | -------: | ---------: | --------------------------------: |
@@ -661,18 +633,35 @@ This section is used to estimate the long-term cloud infrastructure when the pla
 | Log Tank Service (LTS)                   | Log Aggregation                 | Centralized logs และ query ระยะยาว (แทน Loki)                                             |        1 |    $250.00 |                           $250.00 |
 | Application Performance Management (APM) | Distributed Tracing             | Production tracing สำหรับ request ปริมาณสูง (แทน Jaeger)                                      |        1 |    $100.00 |                           $100.00 |
 |                                          |                                 |                                                                                           |          |  **Total** | **≈ $550.00 / month (estimated)** |
+
 ## DevOps & Observability Tooling
 
-ส่วนนี้เพิ่มเติมต้นทุนที่ไม่ได้รวมอยู่ในตาราง infrastructure หลักด้านบน แต่จำเป็นต่อการ build, deploy และ monitor ระบบจริงตามที่ระบุไว้ใน `03-System-Architecture.md` (หัวข้อ CI/CD และ OBSERVABILITY) ได้แก่ Container/Image Registry (เก็บและ pull container image + Helm chart), CI/CD Pipeline (source control, runner, GitOps deployment) และ Observability Stack (metrics, logs, tracing, dashboard, alerting) ซึ่งสถาปัตยกรรมเลือกใช้เป็น self-hosted open-source (Prometheus + Grafana + Loki + OpenTelemetry + Jaeger + ArgoCD) บน Kubernetes แทน managed service ของแต่ละ cloud (เช่น CloudWatch, Cloud Monitoring, Azure Monitor) สมมติฐานปริมาณ (storage, traffic, CI minutes) อ้างอิงสัดส่วนเดียวกับ tier ของ infrastructure หลัก โดยไม่ปรับตามจำนวน environment (สมมติฐานคงที่ 1 ชุด infra ต่อ tier ตามที่ระบุไว้ด้านบน)
+### Minimum
 
-GitHub และ GitHub Actions เป็น SaaS ของ Microsoft/GitHub ไม่ผูกกับ cloud provider ใด ค่าใช้จ่ายจึงเท่ากันไม่ว่าจะ deploy ไปยัง cloud ใด ส่วน ArgoCD (GitOps deployment) และ Helm (Kubernetes packaging) เป็น open-source ที่รันอยู่บน cluster เดิม จึงไม่มีค่า license แยก — มีเพียงค่า compute ที่ถูกนับรวมอยู่ใน "Observability & DevOps Workload" ของแต่ละ cloud ด้านล่าง และ Helm chart ก็จัดเก็บอยู่ใน container registry เดียวกัน (รองรับ OCI artifact)
+| Service        | Item                                        | Quantity | Unit Price           |                Price |
+| -------------- | ------------------------------------------- | -------- | -------------------- | -------------------: |
+| GitHub         | Team Plan (seats)                           | 5        | $4.00 / user / month |               $20.00 |
+| GitHub Actions | CI runner minutes (Linux, ส่วนเกิน free tier) | 3,000    | $0.008 / minute      |               $24.00 |
+| ArgoCD         | GitOps Deployment                           | -        |                      |                $0.00 |
+| Helm           | Chart Packaging & Repository (OCI)          | -        |                      |                $0.00 |
+|                |                                             | -        | **Subtotal**         | **≈ $44.00 / month** |
 
-> **เหตุผล**: จำนวน seat และ CI minutes เพิ่มตามขนาดทีมและความถี่ของ build/deploy ในแต่ละ tier — Minimum (~5 คน, ~3,000 นาที/เดือน) สะท้อนทีมเล็กที่ deploy ไม่บ่อย ไปจนถึง Long-term (~20 คน, ~30,000 นาที/เดือน) ที่มีหลาย environment (Dev/SIT-QA/UAT/Staging/Production ตาม Environment Strategy) และ pipeline รันถี่ขึ้นตามจำนวน microservices และรอบ release ที่มากขึ้น
+### Recommended and Scaling
 
-| Service        | Item                                        | Specification                            |                      Minimum |      Recommended and Scaling |                    Long-term |
-| -------------- | ------------------------------------------- | ---------------------------------------- | ---------------------------: | ---------------------------: | ---------------------------: |
-| GitHub         | Team Plan (seats)                           | $4.00 / user / month                     |             5 users → $20.00 |            10 users → $40.00 |            20 users → $80.00 |
-| GitHub Actions | CI runner minutes (Linux, ส่วนเกิน free tier) | $0.008 / minute                          |          ~3,000 min → $24.00 |         ~10,000 min → $80.00 |        ~30,000 min → $240.00 |
-| ArgoCD         | GitOps Deployment                           | Open-source, self-hosted บน cluster      |  รวมใน compute ของแต่ละ cloud |  รวมใน compute ของแต่ละ cloud |  รวมใน compute ของแต่ละ cloud |
-| Helm           | Chart Packaging & Repository (OCI)          | Open-source, เก็บใน registry เดียวกับ image | รวมใน Registry ของแต่ละ cloud | รวมใน Registry ของแต่ละ cloud | รวมใน Registry ของแต่ละ cloud |
-|                |                                             | **Subtotal (Shared)**                    |         **≈ $44.00 / month** |        **≈ $120.00 / month** |        **≈ $320.00 / month** |
+| Service        | Item                                        | Quantity | Unit Price           |                 Price |
+| -------------- | ------------------------------------------- | -------- | -------------------- | --------------------: |
+| GitHub         | Team Plan (seats)                           | 10       | $4.00 / user / month |                $40.00 |
+| GitHub Actions | CI runner minutes (Linux, ส่วนเกิน free tier) | 10,000   | $0.008 / minute      |                $80.00 |
+| ArgoCD         | GitOps Deployment                           | -        |                      |                 $0.00 |
+| Helm           | Chart Packaging & Repository (OCI)          | -        |                      |                 $0.00 |
+|                |                                             | -        | **Subtotal**         | **≈ $120.00 / month** |
+
+### Long-term
+
+| Service        | Item                                        | Quantity | Unit Price           |                 Price |
+| -------------- | ------------------------------------------- | -------- | -------------------- | --------------------: |
+| GitHub         | Team Plan (seats)                           | 20       | $4.00 / user / month |                $80.00 |
+| GitHub Actions | CI runner minutes (Linux, ส่วนเกิน free tier) | 30,000   | $0.008 / minute      |               $240.00 |
+| ArgoCD         | GitOps Deployment                           | -        |                      |                 $0.00 |
+| Helm           | Chart Packaging & Repository (OCI)          | -        |                      |                 $0.00 |
+|                |                                             | -        | **Subtotal**         | **≈ $320.00 / month** |

@@ -19,47 +19,75 @@ date: 2026-04-24
 - Staging
 - Production
 
-### Network Architecture
+### NETWORK ARCHITECTURE
 
 ออกแบบ network architecture ให้แยก public/private boundary ชัดเจน รองรับ high availability, security และการ scale ของ microservices บน Kubernetes
 
-- VPC (Virtual Private Cloud):
-  - แยก environment ชัดเจน เช่น dev / staging / production
-  - ใช้ Multi-AZ เพื่อรองรับ high availability และลดความเสี่ยงจาก AZ failure
-  - แยก network boundary ระหว่าง internet-facing components, application workloads และ data layer
+#### 1. VPC & Environment Isolation
 
-- Subnets:
-  - Public Subnet:
-    - Application Load Balancer (ALB): รับ traffic จาก internet และทำหน้าที่เป็น entry point หลักของระบบ
-    - NAT Gateway: ใช้ให้ private workloads สามารถออก internet ได้โดยไม่ต้อง expose public IP
-
-  - Private Application Subnet:
-    - Kubernetes Nodes (EKS): ใช้ run microservices และ internal workloads
-    - API Gateway (Kong): ทำหน้าที่ routing, authentication, rate limiting และ policy enforcement ก่อนส่งต่อไปยัง internal services
-    - Internal Services: microservices ภายในระบบที่ไม่ควรถูกเรียกตรงจาก internet
-
-  - Private Data Subnet:
-    - Databases: เช่น PostgreSQL, Redis หรือ data stores อื่นๆ
-    - Message Broker / Streaming Platform: เช่น Kafka, RabbitMQ หรือ AWS MSK ถ้ามีการใช้งาน event-driven architecture
-    - จำกัดการเข้าถึงเฉพาะ service ที่จำเป็นเท่านั้น
-
-- Security:
-  - ใช้ Security Groups เพื่อควบคุม traffic ระดับ resource/service
-  - ใช้ NACLs เพื่อควบคุม traffic ระดับ subnet เป็น defense-in-depth
-  - ใช้ private communication ระหว่าง services ผ่าน internal network
-  - ไม่ expose database หรือ internal services ออก public internet
-  - จำกัด inbound traffic จาก internet ให้เข้าผ่าน ALB เท่านั้น
-  - ใช้ IAM Roles for Service Accounts (IRSA) เพื่อให้ Kubernetes workload เข้าถึง AWS services แบบ least privilege
+- Technology:
+  - [X] AWS VPC: เหมาะสำหรับแยก network boundary ของระบบ และควบคุม traffic ระหว่าง public, application และ data layer
+  - [X] Multi-AZ: เหมาะสำหรับกระจาย workload ข้ามหลาย Availability Zones เพื่อลดความเสี่ยงจาก AZ failure
+  - [ ] Separate AWS Account per Environment: เหมาะเป็น option หากต้องการแยก dev / staging / production ให้ปลอดภัยและควบคุม permission ชัดเจนขึ้น
 
 **Reason**:
 
-- ALB ควรเป็น public-facing entry point หลัก ส่วน Kong/API Gateway ควรอยู่หลัง ALB เพื่อให้ควบคุม traffic และ security policy ได้ปลอดภัยกว่า
-- แยก Private Application Subnet และ Private Data Subnet ช่วยลด blast radius หาก application layer มีปัญหาหรือถูกโจมตี
+- VPC ช่วยกำหนด network boundary ของระบบให้เป็นสัดส่วน
+- Multi-AZ ช่วยเพิ่ม high availability สำหรับ production workload
+- การแยก environment เช่น dev / staging / production ช่วยลดความเสี่ยงจากการ config หรือ deploy ผิด environment
+
+#### 2. Public Subnet
+
+- Technology:
+  - [X] Application Load Balancer (ALB): เหมาะสำหรับรับ traffic จาก internet และเป็น entry point หลักของระบบ
+  - [X] NAT Gateway: เหมาะสำหรับให้ private workloads ออก internet ได้โดยไม่ต้อง expose public IP
+  - [ ] AWS CloudFront: เหมาะเป็น option หากต้องการ CDN, caching และ edge protection สำหรับ Web/Mobile traffic
+
+**Reason**:
+
+- ALB ควรเป็น public-facing entry point หลักของระบบ
+- NAT Gateway จำเป็นสำหรับ private workloads ที่ต้องออก internet เช่น pull image, call external API หรือ update package
+- จำกัด inbound traffic จาก internet ให้เข้าผ่าน ALB เท่านั้น ช่วยลดการ expose service ภายใน
+
+#### 3. Private Application Subnet
+
+- Technology:
+  - [X] Amazon EKS Worker Nodes: เหมาะสำหรับ run microservices และ internal workloads ภายใน private network
+  - [X] Kong API Gateway: เหมาะสำหรับ routing, authentication, rate limiting และ policy enforcement ก่อนส่งต่อไปยัง BFF หรือ internal services
+  - [X] Internal Services: เหมาะสำหรับ microservices ที่ไม่ควรถูกเรียกตรงจาก internet
+
+**Reason**:
+
 - EKS workloads ควรอยู่ใน private subnet เพื่อไม่ให้ service ภายในถูกเข้าถึงจาก internet โดยตรง
-- Databases ควรอยู่ใน private data subnet และเปิดให้เข้าถึงเฉพาะ service ที่จำเป็นเท่านั้น
-- Multi-AZ ช่วยให้ระบบยังทำงานได้หาก Availability Zone ใด Zone หนึ่งมีปัญหา
-- NAT Gateway จำเป็นสำหรับ private workloads ที่ต้องออก internet เช่น pull image, call external API หรือ update package โดยไม่ต้องเปิด public IP
-- Security Groups เหมาะกับการควบคุม access ราย service ส่วน NACLs เหมาะเป็น subnet-level protection เพิ่มเติม
+- Kong/API Gateway ควรอยู่หลัง ALB เพื่อให้ควบคุม traffic และ security policy ได้ปลอดภัยกว่า
+- การแยก application layer ออกจาก public subnet ช่วยลด blast radius หากมีการโจมตีจากภายนอก
+
+#### 4. Private Data Subnet
+
+- Technology:
+  - [X] Amazon RDS for PostgreSQL: เหมาะสำหรับ relational database ของ service หลัก
+  - [X] Amazon ElastiCache for Redis: เหมาะสำหรับ cache, session, token metadata และ temporary data
+  - [X] Amazon MSK / Message Broker: เหมาะสำหรับ event-driven architecture และ async communication ระหว่าง services
+
+**Reason**:
+
+- Databases และ data stores ควรอยู่ใน private data subnet เท่านั้น
+- จำกัดการเข้าถึง data layer เฉพาะ service ที่จำเป็น ช่วยลดความเสี่ยงจาก data breach
+- แยก data subnet ออกจาก application subnet ทำให้ควบคุม access และ security rule ได้ละเอียดขึ้น
+
+#### 5. Network Security
+
+- Technology:
+  - [X] Security Groups: เหมาะสำหรับควบคุม traffic ระดับ resource หรือ service
+  - [X] NACLs: เหมาะสำหรับควบคุม traffic ระดับ subnet เป็น defense-in-depth
+  - [X] IAM Roles for Service Accounts (IRSA): เหมาะสำหรับให้ Kubernetes workload เข้าถึง AWS services แบบ least privilege
+
+**Reason**:
+
+- Security Groups ใช้ควบคุม access ราย service เช่น ALB → Kong, Kong → BFF, Service → Database
+- NACLs ช่วยเพิ่ม subnet-level protection อีกชั้นหนึ่ง
+- IRSA ช่วยลดการฝัง AWS credentials ไว้ใน pod และให้แต่ละ workload ได้ permission เท่าที่จำเป็น
+- Private communication ระหว่าง services ช่วยให้ internal traffic ไม่ต้องออก public internet
 
 ### Compute Layer
 
